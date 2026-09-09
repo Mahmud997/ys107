@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Школьная система посещаемости</title>
+    <title>School Attendance Pro — учёт посещаемости</title>
+    <meta name="description" content="Онлайн-система учёта посещаемости школы с Google Таблицами">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <style>
         * {
@@ -911,6 +913,11 @@
                     <label for="filterName">ФИО</label>
                     <input type="text" id="filterName" placeholder="Поиск..." oninput="renderJournal()" style="flex:2;">
                 </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+                    <button class="btn btn-primary" onclick="exportXLSX()">Экспорт Excel</button>
+                    <button class="btn" onclick="exportCSV()">Экспорт CSV</button>
+                    <button class="btn" onclick="window.print()">Печать</button>
+                </div>
             </div>
             <div class="table-wrapper" style="max-height:500px; overflow-y:auto;">
                 <table>
@@ -974,491 +981,242 @@
 
 <script>
     // ======================== CONFIGURATION ========================
-    // ⚠️ REPLACE WITH YOUR GOOGLE APPS SCRIPT URL
+    // Укажи URL опубликованного Google Apps Script Web App.
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLjSgq3ugXkVTs-4QWBeEtaH7yREDTQ-xQx9CvCot7MeO8nrD56N9ZBWLqY5V27oYx/exec';
 
     // ======================== STATE ========================
     let currentUser = null;
     let appData = { students: [], records: [] };
-    let today = new Date().toISOString().split('T')[0];
+    let today = new Date().toLocaleDateString('en-CA');
     let syncInterval = null;
-    let sessionId = null;
-
-    // Хранилище активных сессий (в реальном проекте — на сервере)
-    // Здесь используется localStorage для демонстрации
-    let activeSessions = [];
+    let sessionToken = sessionStorage.getItem('attendanceToken') || '';
 
     // ======================== API ========================
     async function callApi(action, params = {}) {
-        const url = new URL(SCRIPT_URL);
-        url.searchParams.set('action', action);
-        for (const [key, value] of Object.entries(params)) {
-            if (value !== undefined && value !== null) {
-                url.searchParams.set(key, value);
-            }
-        }
+        const payload = { action, ...params };
+        if (sessionToken && !payload.token) payload.token = sessionToken;
         try {
-            const response = await fetch(url.toString());
-            return await response.json();
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload),
+                redirect: 'follow'
+            });
+            const data = await response.json();
+            if (data.auth === false) handleAuthExpired();
+            return data;
         } catch (error) {
             console.error('API error:', error);
-            return { error: error.message };
+            setStatus('offline', 'Ошибка связи');
+            return { success:false, error:error.message };
         }
     }
 
-    // ======================== SESSION MANAGEMENT ========================
     function generateSessionId() {
-        return Math.random().toString(36).substring(2, 6).toUpperCase();
+        return (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)) .slice(0, 6).toUpperCase();
     }
 
-    function registerSession(login) {
-        sessionId = generateSessionId();
-        // Сохраняем сессию в localStorage (имитация общей базы)
-        let sessions = JSON.parse(localStorage.getItem('activeSessions') || '[]');
-        sessions = sessions.filter(s => s.login !== login || (Date.now() - s.timestamp) > 60000);
-        sessions.push({ login, sessionId, timestamp: Date.now() });
-        localStorage.setItem('activeSessions', JSON.stringify(sessions));
-        updateOnlineUsers();
-        return sessionId;
-    }
-
-    function unregisterSession() {
-        if (!sessionId) return;
-        let sessions = JSON.parse(localStorage.getItem('activeSessions') || '[]');
-        sessions = sessions.filter(s => s.sessionId !== sessionId);
-        localStorage.setItem('activeSessions', JSON.stringify(sessions));
-        updateOnlineUsers();
-    }
-
-    function updateOnlineUsers() {
-        let sessions = JSON.parse(localStorage.getItem('activeSessions') || '[]');
-        // Очищаем старые сессии (старше 60 секунд)
-        sessions = sessions.filter(s => (Date.now() - s.timestamp) < 60000);
-        localStorage.setItem('activeSessions', JSON.stringify(sessions));
-        
-        const uniqueUsers = new Set(sessions.map(s => s.login));
-        const count = uniqueUsers.size;
-        const el = document.getElementById('onlineUsers');
-        if (count > 0) {
-            el.classList.remove('hidden');
-            document.getElementById('usersCount').textContent = count;
-        } else {
-            el.classList.add('hidden');
-        }
-    }
-
-    // Периодическое обновление списка онлайн
-    setInterval(updateOnlineUsers, 10000);
-
-    // ======================== AUTH ========================
-    async function login() {
-        const login = document.getElementById('loginInput').value.trim();
-        const password = document.getElementById('passwordInput').value.trim();
-        const errorEl = document.getElementById('loginError');
-
-        if (!login || !password) {
-            errorEl.textContent = 'Введите логин и пароль';
-            return;
-        }
-
-        errorEl.textContent = 'Подключение...';
-        const result = await callApi('login', { login, password });
-
-        if (result.success) {
-            currentUser = { login, role: result.role, name: result.name };
-            errorEl.textContent = '';
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('mainApp').classList.remove('hidden');
-
-            // Регистрируем сессию
-            const sid = registerSession(login);
-            document.getElementById('sessionId').textContent = '#' + sid;
-
-            const badge = document.getElementById('userBadge');
-            document.getElementById('userName').textContent = result.name || result.login;
-            const roleEl = document.getElementById('userRole');
-            roleEl.textContent = result.role === 'zavuch' ? 'Завуч' : 'Дежурный';
-            roleEl.className = `role ${result.role === 'zavuch' ? 'role-zavuch' : 'role-teacher'}`;
-            badge.classList.remove('hidden');
-            document.getElementById('logoutBtn').classList.remove('hidden');
-
-            applyRolePermissions();
-            await loadData();
-            startAutoSync();
-            updateOnlineUsers();
-        } else {
-            errorEl.textContent = 'Неверный логин или пароль';
-        }
-    }
-
-    function logout() {
-        unregisterSession();
+    function handleAuthExpired() {
+        if (!currentUser) return;
         currentUser = null;
+        sessionToken = '';
+        sessionStorage.removeItem('attendanceToken');
         clearInterval(syncInterval);
         document.getElementById('loginScreen').classList.remove('hidden');
         document.getElementById('mainApp').classList.add('hidden');
         document.getElementById('userBadge').classList.add('hidden');
         document.getElementById('logoutBtn').classList.add('hidden');
+        setStatus('offline', 'Сессия истекла');
+        document.getElementById('loginError').textContent = 'Сессия истекла. Войдите снова.';
+    }
+
+    // ======================== AUTH ========================
+    async function login() {
+        const login = document.getElementById('loginInput').value.trim();
+        const password = document.getElementById('passwordInput').value;
+        const errorEl = document.getElementById('loginError');
+        if (!login || !password) { errorEl.textContent = 'Введите логин и пароль'; return; }
+        errorEl.textContent = 'Подключение...';
+        const result = await callApi('login', { login, password });
+        if (!result.success) { errorEl.textContent = result.error || 'Неверный логин или пароль'; return; }
+        sessionToken = result.token;
+        sessionStorage.setItem('attendanceToken', sessionToken);
+        currentUser = { login, role: result.role, name: result.name };
+        errorEl.textContent = '';
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('mainApp').classList.remove('hidden');
+        document.getElementById('sessionId').textContent = '#' + generateSessionId();
+        document.getElementById('userName').textContent = result.name || result.login;
+        const roleEl = document.getElementById('userRole');
+        roleEl.textContent = result.role === 'zavuch' ? 'Завуч' : 'Дежурный';
+        roleEl.className = `role ${result.role === 'zavuch' ? 'role-zavuch' : 'role-teacher'}`;
+        document.getElementById('userBadge').classList.remove('hidden');
+        document.getElementById('logoutBtn').classList.remove('hidden');
+        applyRolePermissions();
+        await loadData();
+        await refreshOnlineUsers();
+        startAutoSync();
+    }
+
+    async function logout() {
+        try { await callApi('logout'); } catch (_) {}
+        currentUser = null; sessionToken=''; sessionStorage.removeItem('attendanceToken'); clearInterval(syncInterval);
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('mainApp').classList.add('hidden');
+        document.getElementById('userBadge').classList.add('hidden');
+        document.getElementById('logoutBtn').classList.add('hidden');
         setStatus('offline', 'Отключено');
-        updateOnlineUsers();
     }
 
     // ======================== STATUS ========================
     function setStatus(state, text) {
-        const dot = document.getElementById('statusDot');
-        const label = document.getElementById('statusText');
-        dot.className = `status-dot ${state}`;
-        label.textContent = text;
+        const dot=document.getElementById('statusDot'), label=document.getElementById('statusText');
+        dot.className=`status-dot ${state}`; label.textContent=text;
     }
 
-    // ======================== DATA LOADING ========================
+    // ======================== DATA ========================
     async function loadData() {
-        try {
-            setStatus('syncing', 'Синхронизация...');
-
-            const [students, records] = await Promise.all([
-                callApi('getStudents'),
-                callApi('getRecords')
-            ]);
-
-            if (!students.error) appData.students = students;
-            if (!records.error) appData.records = records;
-
-            setStatus('online', 'Онлайн');
-            renderAll();
-        } catch (error) {
-            setStatus('offline', 'Ошибка');
-            console.error('Load error:', error);
-        }
+        setStatus('syncing','Синхронизация...');
+        const [students, records] = await Promise.all([callApi('getStudents'), callApi('getRecords')]);
+        if (Array.isArray(students)) appData.students=students;
+        if (Array.isArray(records)) appData.records=records;
+        if (!students.error && !records.error) { setStatus('online','Онлайн'); renderAll(); }
     }
 
     function startAutoSync() {
         clearInterval(syncInterval);
-        syncInterval = setInterval(() => {
-            if (currentUser) {
-                // Обновляем сессию (продлеваем жизнь)
-                let sessions = JSON.parse(localStorage.getItem('activeSessions') || '[]');
-                const idx = sessions.findIndex(s => s.sessionId === sessionId);
-                if (idx !== -1) {
-                    sessions[idx].timestamp = Date.now();
-                    localStorage.setItem('activeSessions', JSON.stringify(sessions));
-                }
-                updateOnlineUsers();
+        syncInterval=setInterval(async()=>{
+            if(!currentUser) return;
+            const hb=await callApi('heartbeat');
+            if(hb && hb.success) renderOnlineUsers(hb.online || []);
+            const [records,students]=await Promise.all([callApi('getRecords'),callApi('getStudents')]);
+            let changed=false;
+            if(Array.isArray(records) && JSON.stringify(records)!==JSON.stringify(appData.records)){appData.records=records;changed=true;}
+            if(Array.isArray(students) && JSON.stringify(students)!==JSON.stringify(appData.students)){appData.students=students;changed=true;}
+            if(changed) renderAll();
+        },5000);
+    }
 
-                callApi('getRecords').then(records => {
-                    if (!records.error && JSON.stringify(records) !== JSON.stringify(appData.records)) {
-                        appData.records = records;
-                        renderAll();
-                    }
-                });
-                callApi('getStudents').then(students => {
-                    if (!students.error && JSON.stringify(students) !== JSON.stringify(appData.students)) {
-                        appData.students = students;
-                        renderAll();
-                    }
-                });
-            }
-        }, 5000);
+    async function refreshOnlineUsers(){ const r=await callApi('getOnlineUsers'); if(r.success) renderOnlineUsers(r.users||[]); }
+    function renderOnlineUsers(users){
+        const el=document.getElementById('onlineUsers');
+        const count=[...new Set(users.map(u=>u.login))].length;
+        if(count){el.classList.remove('hidden');document.getElementById('usersCount').textContent=count;}else el.classList.add('hidden');
     }
 
     // ======================== PERMISSIONS ========================
-    function applyRolePermissions() {
-        const isZavuch = currentUser && currentUser.role === 'zavuch';
-        document.querySelectorAll('.admin-only').forEach(el => {
-            el.style.display = isZavuch ? '' : 'none';
-        });
-        document.getElementById('adminTab').style.display = isZavuch ? 'inline-block' : 'none';
+    function applyRolePermissions(){
+        const isZavuch=currentUser && currentUser.role==='zavuch';
+        document.querySelectorAll('.admin-only').forEach(el=>el.style.display=isZavuch?'':'none');
+        document.getElementById('adminTab').style.display=isZavuch?'inline-block':'none';
     }
 
     // ======================== RENDER ========================
-    function renderAll() {
-        renderStudents();
-        renderStudentSelects();
-        renderTodayStats();
-        renderTodayTable();
-        renderTodayFull();
-        renderJournal();
-        renderStudentStats();
-        renderClassFilter();
-        renderStatsSummary();
-        document.getElementById('todayDate').textContent = new Date().toLocaleDateString('ru-RU', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-        });
+    function renderAll(){
+        renderStudents(); renderStudentSelects(); renderTodayStats(); renderTodayTable(); renderTodayFull(); renderJournal(); renderStudentStats(); renderClassFilter(); renderStatsSummary();
+        document.getElementById('todayDate').textContent=new Date().toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
     }
 
-    function renderStatsSummary() {
-        const total = appData.students.length;
-        const classes = new Set(appData.students.map(s => s.class));
-        const todayRecs = appData.records.filter(r => r.date === today);
-        const late = todayRecs.filter(r => r.status === 'late').length;
-        const absent = todayRecs.filter(r => r.status === 'absent').length;
-        document.getElementById('totalStudents').textContent = total;
-        document.getElementById('todayRecords').textContent = todayRecs.length;
-        document.getElementById('todayLate').textContent = late;
-        document.getElementById('todayAbsent').textContent = absent;
-        document.getElementById('totalClasses').textContent = classes.size;
+    function renderStatsSummary(){
+        const total=appData.students.length, classes=new Set(appData.students.map(s=>s.class));
+        const todayRecs=appData.records.filter(r=>r.date===today);
+        const late=todayRecs.filter(r=>r.status==='late').length, absent=todayRecs.filter(r=>r.status==='absent').length;
+        document.getElementById('todayTotal').textContent=todayRecs.length;
+        document.getElementById('todayLate2').textContent=late;
+        document.getElementById('todayAbsent2').textContent=absent;
+        document.getElementById('totalStudents').textContent=total;
+        document.getElementById('totalClasses').textContent=classes.size;
+        const classMap={}; todayRecs.forEach(r=>{const c=getStudentClass(r.studentId);classMap[c]=(classMap[c]||0)+1;});
+        document.getElementById('classBreakdown').innerHTML=Object.entries(classMap).map(([c,n])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gray-100)"><span>${escapeHtml(c)}</span><b>${n}</b></div>`).join('')||'<div class="empty-state">Нет записей</div>';
+        const statusMap={}; todayRecs.forEach(r=>statusMap[r.status]=(statusMap[r.status]||0)+1);
+        document.getElementById('statusBreakdown').innerHTML=Object.entries(statusMap).map(([st,n])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gray-100)"><span>${getStatusLabel(st)}</span><b>${n}</b></div>`).join('')||'<div class="empty-state">Нет записей</div>';
     }
 
-    function renderStudents() {
-        const tbody = document.getElementById('studentsTableBody');
-        const isZavuch = currentUser && currentUser.role === 'zavuch';
-        if (appData.students.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Список учеников пуст</td></tr>';
-            return;
-        }
-        tbody.innerHTML = appData.students.map(s => `
-            <tr>
-                <td><strong>${s.name}</strong></td>
-                <td>${s.class}</td>
-                <td>
-                    ${isZavuch ? `<button class="btn btn-danger btn-sm" onclick="removeStudent('${s.id}')">Удалить</button>` : '—'}
-                </td>
-            </tr>
-        `).join('');
+    function renderStudents(){
+        const tbody=document.getElementById('studentsTableBody'); const isZ=currentUser&&currentUser.role==='zavuch';
+        tbody.innerHTML=appData.students.map(s=>`<tr><td><strong>${escapeHtml(s.name)}</strong></td><td>${escapeHtml(s.class)}</td><td>${isZ?`<button class="btn btn-danger btn-sm" onclick="removeStudent('${s.id}')">Удалить</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="3" class="empty-state">Нет учеников</td></tr>';
     }
-
-    function renderStudentSelects() {
-        ['studentSelect', 'studentStatSelect'].forEach(id => {
-            const sel = document.getElementById(id);
-            if (!sel) return;
-            const currentVal = sel.value;
-            sel.innerHTML = '<option value="">— Выберите ученика —</option>' +
-                appData.students.map(s => `<option value="${s.id}">${s.name} (${s.class})</option>`).join('');
-            if (currentVal && appData.students.some(s => s.id === currentVal)) {
-                sel.value = currentVal;
-            }
-        });
+    function renderStudentSelects(){
+        const sel=document.getElementById('studentSelect'), stat=document.getElementById('studentStatSelect'); const current=sel.value, currentStat=stat.value;
+        const opts='<option value="">Выберите ученика...</option>'+appData.students.slice().sort((a,b)=>a.class.localeCompare(b.class,'ru')||a.name.localeCompare(b.name,'ru')).map(s=>`<option value="${s.id}">${escapeHtml(s.class)} — ${escapeHtml(s.name)}</option>`).join('');
+        sel.innerHTML=opts;stat.innerHTML=opts; if(appData.students.some(s=>s.id===current))sel.value=current;if(appData.students.some(s=>s.id===currentStat))stat.value=currentStat;
     }
-
-    function renderTodayStats() {
-        const todayRecs = appData.records.filter(r => r.date === today);
-        document.getElementById('todayTotal').textContent = todayRecs.length;
-        document.getElementById('todayLate2').textContent = todayRecs.filter(r => r.status === 'late').length;
-        document.getElementById('todayAbsent2').textContent = todayRecs.filter(r => r.status === 'absent').length;
-
-        const classMap = {};
-        todayRecs.forEach(r => {
-            const cls = getStudentClass(r.studentId);
-            classMap[cls] = (classMap[cls] || 0) + 1;
-        });
-        document.getElementById('classBreakdown').innerHTML = Object.entries(classMap)
-            .map(([cls, count]) => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gray-100);"><span>${cls}</span><span style="font-weight:600;">${count}</span></div>`)
-            .join('') || '<div class="empty-state">Нет записей</div>';
-
-        const statusMap = {};
-        todayRecs.forEach(r => {
-            statusMap[r.status] = (statusMap[r.status] || 0) + 1;
-        });
-        document.getElementById('statusBreakdown').innerHTML = Object.entries(statusMap)
-            .map(([st, count]) => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gray-100);"><span>${getStatusLabel(st)}</span><span style="font-weight:600;">${count}</span></div>`)
-            .join('') || '<div class="empty-state">Нет записей</div>';
+    function renderTodayStats(){renderStatsSummary();}
+    function renderTodayTable(){
+        const rows=appData.records.filter(r=>r.date===today).slice().reverse().slice(0,10);
+        document.getElementById('todayTableBody').innerHTML=rows.map(r=>`<tr><td>${escapeHtml(r.time||'—')}</td><td>${escapeHtml(getStudentName(r.studentId))}</td><td>${escapeHtml(getStudentClass(r.studentId))}</td><td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td></tr>`).join('')||'<tr><td colspan="4" class="empty-state">Нет записей сегодня</td></tr>';
     }
-
-    function renderTodayTable() {
-        const tbody = document.getElementById('todayTableBody');
-        const todayRecs = appData.records.filter(r => r.date === today).slice(-10).reverse();
-        tbody.innerHTML = todayRecs.map(r => `
-            <tr>
-                <td>${r.time || '—'}</td>
-                <td>${getStudentName(r.studentId)}</td>
-                <td>${getStudentClass(r.studentId)}</td>
-                <td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
-            </tr>
-        `).join('') || '<tr><td colspan="4" class="empty-state">Нет записей сегодня</td></tr>';
+    function renderTodayFull(){
+        const rows=appData.records.filter(r=>r.date===today).slice().reverse();
+        document.getElementById('todayFullTable').innerHTML=rows.map(r=>`<tr><td>${escapeHtml(r.time||'—')}</td><td>${escapeHtml(getStudentName(r.studentId))}</td><td>${escapeHtml(getStudentClass(r.studentId))}</td><td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td></tr>`).join('')||'<tr><td colspan="4" class="empty-state">Нет записей сегодня</td></tr>';
     }
-
-    function renderTodayFull() {
-        const tbody = document.getElementById('todayFullTable');
-        const todayRecs = appData.records.filter(r => r.date === today).slice().reverse();
-        tbody.innerHTML = todayRecs.map(r => `
-            <tr>
-                <td>${r.time || '—'}</td>
-                <td>${getStudentName(r.studentId)}</td>
-                <td>${getStudentClass(r.studentId)}</td>
-                <td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
-            </tr>
-        `).join('') || '<tr><td colspan="4" class="empty-state">Нет записей сегодня</td></tr>';
+    function renderJournal(){
+        const fc=document.getElementById('filterClass').value, fn=document.getElementById('filterName').value.toLowerCase().trim(); let rows=appData.records.slice().reverse();
+        if(fc)rows=rows.filter(r=>getStudentClass(r.studentId)===fc);if(fn)rows=rows.filter(r=>getStudentName(r.studentId).toLowerCase().includes(fn));
+        document.getElementById('journalTableBody').innerHTML=rows.map(r=>`<tr><td>${escapeHtml(r.date)}</td><td><strong>${escapeHtml(getStudentName(r.studentId))}</strong></td><td>${escapeHtml(getStudentClass(r.studentId))}</td><td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td><td>${escapeHtml(r.note||'—')}</td><td>${escapeHtml(r.teacher||'—')}</td></tr>`).join('')||'<tr><td colspan="6" class="empty-state">Нет записей</td></tr>';
     }
-
-    function renderJournal() {
-        const filterClass = document.getElementById('filterClass').value;
-        const filterName = document.getElementById('filterName').value.toLowerCase();
-        const tbody = document.getElementById('journalTableBody');
-        let records = appData.records.slice().reverse();
-        if (filterClass) {
-            records = records.filter(r => getStudentClass(r.studentId) === filterClass);
-        }
-        if (filterName) {
-            records = records.filter(r => getStudentName(r.studentId).toLowerCase().includes(filterName));
-        }
-        tbody.innerHTML = records.map(r => `
-            <tr>
-                <td>${r.date}</td>
-                <td><strong>${getStudentName(r.studentId)}</strong></td>
-                <td>${getStudentClass(r.studentId)}</td>
-                <td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
-                <td>${r.note || '—'}</td>
-                <td style="font-size:13px;color:var(--gray-500);">${r.teacher || '—'}</td>
-            </tr>
-        `).join('') || '<tr><td colspan="6" class="empty-state">Нет записей</td></tr>';
+    function renderClassFilter(){
+        const sel=document.getElementById('filterClass'),cur=sel.value,classes=[...new Set(appData.students.map(s=>s.class))].sort((a,b)=>a.localeCompare(b,'ru'));
+        sel.innerHTML='<option value="">Все классы</option>'+classes.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');if(classes.includes(cur))sel.value=cur;
     }
-
-    function renderClassFilter() {
-        const sel = document.getElementById('filterClass');
-        const classes = [...new Set(appData.students.map(s => s.class))];
-        const current = sel.value;
-        sel.innerHTML = '<option value="">Все классы</option>' +
-            classes.map(c => `<option value="${c}">${c}</option>`).join('');
-        if (current) sel.value = current;
-    }
-
-    function renderStudentStats() {
-        const sel = document.getElementById('studentStatSelect');
-        const id = sel.value;
-        if (!id) {
-            ['statTotal', 'statLate2', 'statAbsent2'].forEach(el => document.getElementById(el).textContent = '0');
-            document.getElementById('statViolation').textContent = '—';
-            document.getElementById('statDetailTable').innerHTML = '';
-            return;
-        }
-        const records = appData.records.filter(r => r.studentId === id);
-        const total = records.length;
-        const late = records.filter(r => r.status === 'late').length;
-        const absent = records.filter(r => r.status === 'absent').length;
-        const violation = total ? ((late + absent) / total * 100).toFixed(1) + '%' : '—';
-        document.getElementById('statTotal').textContent = total;
-        document.getElementById('statLate2').textContent = late;
-        document.getElementById('statAbsent2').textContent = absent;
-        document.getElementById('statViolation').textContent = violation;
-
-        const tbody = document.getElementById('statDetailTable');
-        tbody.innerHTML = records.slice().reverse().map(r => `
-            <tr>
-                <td>${r.date}</td>
-                <td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
-                <td>${r.note || '—'}</td>
-            </tr>
-        `).join('') || '<tr><td colspan="3" class="empty-state">Нет записей</td></tr>';
-    }
-
-    // ======================== HELPERS ========================
-    function getStudentName(id) {
-        const s = appData.students.find(st => st.id === id);
-        return s ? s.name : 'Удален';
-    }
-
-    function getStudentClass(id) {
-        const s = appData.students.find(st => st.id === id);
-        return s ? s.class : '—';
-    }
-
-    function getStatusLabel(status) {
-        const map = { present: 'Присутствовал', late: 'Опоздал', absent: 'Отсутствовал', excused: 'Уважительная' };
-        return map[status] || status;
-    }
-
-    function getStatusClass(status) {
-        const map = { present: 'status-present', late: 'status-late', absent: 'status-absent', excused: 'status-excused' };
-        return map[status] || '';
+    function renderStudentStats(){
+        const id=document.getElementById('studentStatSelect').value;
+        if(!id){['statTotal','statLate2','statAbsent2'].forEach(x=>document.getElementById(x).textContent='0');document.getElementById('statViolation').textContent='—';document.getElementById('statDetailTable').innerHTML='';return;}
+        const rows=appData.records.filter(r=>r.studentId===id),late=rows.filter(r=>r.status==='late').length,abs=rows.filter(r=>r.status==='absent').length;
+        document.getElementById('statTotal').textContent=rows.length;document.getElementById('statLate2').textContent=late;document.getElementById('statAbsent2').textContent=abs;document.getElementById('statViolation').textContent=rows.length?((late+abs)/rows.length*100).toFixed(1)+'%':'—';
+        document.getElementById('statDetailTable').innerHTML=rows.slice().reverse().map(r=>`<tr><td>${escapeHtml(r.date)}</td><td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td><td>${escapeHtml(r.note||'—')}</td></tr>`).join('')||'<tr><td colspan="3" class="empty-state">Нет записей</td></tr>';
     }
 
     // ======================== ACTIONS ========================
-    async function markAttendance() {
-        if (!currentUser) { alert('Войдите в систему'); return; }
-        const studentId = document.getElementById('studentSelect').value;
-        const status = document.getElementById('statusSelect').value;
-        const note = document.getElementById('noteInput').value.trim();
-        if (!studentId) { alert('Выберите ученика'); return; }
-
-        const now = new Date();
-        const record = {
-            studentId: studentId,
-            date: today,
-            time: now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-            status: status,
-            note: note,
-            teacher: currentUser.name || currentUser.login + ' (#' + sessionId + ')'
-        };
-
-        const result = await callApi('addRecord', record);
-        if (result.success) {
-            record.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-            appData.records.push(record);
-            renderAll();
-            document.getElementById('noteInput').value = '';
-            setStatus('online', 'Сохранено');
-            setTimeout(() => setStatus('online', 'Онлайн'), 1500);
-        } else {
-            alert('Ошибка: ' + (result.error || 'Неизвестная ошибка'));
-        }
+    async function markAttendance(){
+        if(!currentUser){alert('Войдите в систему');return;}
+        const studentId=document.getElementById('studentSelect').value,status=document.getElementById('statusSelect').value,note=document.getElementById('noteInput').value.trim();
+        if(!studentId){alert('Выберите ученика');return;}
+        const now=new Date(), record={studentId,date:today,time:now.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),status,note};
+        const result=await callApi('addRecord',record);
+        if(result.success){await loadData();document.getElementById('noteInput').value='';setStatus('online',result.updated?'Отметка обновлена':'Сохранено');setTimeout(()=>setStatus('online','Онлайн'),1500);}
+        else alert(result.error||'Ошибка сохранения');
+    }
+    async function addStudent(){
+        if(!currentUser||currentUser.role!=='zavuch'){alert('Только завуч может добавлять учеников');return;}
+        const name=document.getElementById('studentName').value.trim(),cls=document.getElementById('studentClass').value.trim();if(!name||!cls){alert('Введите ФИО и класс');return;}
+        const result=await callApi('addStudent',{name,class:cls});if(result.success){await loadData();document.getElementById('studentName').value='';document.getElementById('studentClass').value='';}else alert(result.error||'Ошибка');
+    }
+    async function removeStudent(id){
+        if(!currentUser||currentUser.role!=='zavuch')return;if(!confirm('Удалить ученика и все его записи?'))return;
+        const a=await callApi('removeStudent',{id});if(!a.success){alert(a.error||'Ошибка');return;}await callApi('removeStudentRecords',{studentId:id});await loadData();
+    }
+    async function resetAll(){
+        if(!currentUser||currentUser.role!=='zavuch'){alert('Только завуч может сбросить данные');return;}if(!confirm('Удалить ВСЕ записи посещаемости? Ученики останутся.'))return;
+        const r=await callApi('resetAll');if(r.success){await loadData();alert(`Удалено записей: ${r.deleted||0}`);}else alert(r.error||'Ошибка сброса');
     }
 
-    async function addStudent() {
-        if (!currentUser || currentUser.role !== 'zavuch') {
-            alert('Только завуч может добавлять учеников');
-            return;
-        }
-        const name = document.getElementById('studentName').value.trim();
-        const cls = document.getElementById('studentClass').value.trim();
-        if (!name || !cls) { alert('Введите ФИО и класс'); return; }
-        if (appData.students.some(s => s.name === name)) { alert('Такой ученик уже есть'); return; }
-
-        const result = await callApi('addStudent', { name, class: cls });
-        if (result.success) {
-            await loadData();
-            document.getElementById('studentName').value = '';
-            document.getElementById('studentClass').value = '';
-        } else {
-            alert('Ошибка при добавлении');
-        }
+    // ======================== EXPORT ========================
+    function exportCSV(){
+        const rows=[['Дата','ФИО','Класс','Статус','Примечание','Отметил']];
+        appData.records.forEach(r=>rows.push([r.date,getStudentName(r.studentId),getStudentClass(r.studentId),getStatusLabel(r.status),r.note||'',r.teacher||'']));
+        const csv='\ufeff'+rows.map(row=>row.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(';')).join('\n');
+        downloadBlob(csv,'attendance-'+today+'.csv','text/csv;charset=utf-8');
     }
-
-    async function removeStudent(id) {
-        if (!currentUser || currentUser.role !== 'zavuch') {
-            alert('Только завуч может удалять учеников');
-            return;
-        }
-        if (!confirm('Удалить ученика и все его записи?')) return;
-
-        await callApi('removeStudent', { id });
-        await callApi('removeStudentRecords', { studentId: id });
-        await loadData();
+    function exportXLSX(){
+        if(typeof XLSX==='undefined'){alert('Библиотека Excel не загрузилась.');return;}
+        const rows=appData.records.map(r=>({Дата:r.date,ФИО:getStudentName(r.studentId),Класс:getStudentClass(r.studentId),Статус:getStatusLabel(r.status),Примечание:r.note||'',Отметил:r.teacher||''}));
+        const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(rows);XLSX.utils.book_append_sheet(wb,ws,'Посещаемость');XLSX.writeFile(wb,'attendance-'+today+'.xlsx');
     }
+    function downloadBlob(text,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
 
-    async function resetAll() {
-        if (!currentUser || currentUser.role !== 'zavuch') {
-            alert('Только завуч может сбросить данные');
-            return;
-        }
-        if (!confirm('Удалить все записи посещаемости? Ученики останутся.')) return;
-        alert('Очистите лист "records" в Google Таблице вручную');
-        await loadData();
-    }
+    // ======================== HELPERS ========================
+    function getStudentName(id){const s=appData.students.find(x=>x.id===id);return s?s.name:'Удален';}
+    function getStudentClass(id){const s=appData.students.find(x=>x.id===id);return s?s.class:'—';}
+    function getStatusLabel(s){return ({present:'Присутствовал',late:'Опоздал',absent:'Отсутствовал',excused:'Уважительная причина'})[s]||s;}
+    function getStatusClass(s){return ({present:'status-present',late:'status-late',absent:'status-absent',excused:'status-excused'})[s]||'';}
+    function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 
-    // ======================== TABS ========================
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            if (this.disabled) return;
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            this.classList.add('active');
-            document.getElementById(this.dataset.tab).classList.add('active');
-        });
-    });
-
-    // ======================== INIT ========================
-    document.getElementById('passwordInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') login();
-    });
-    document.getElementById('loginInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') document.getElementById('passwordInput').focus();
-    });
-
-    setStatus('offline', 'Ожидание входа');
-    updateOnlineUsers();
+    // ======================== TABS / INIT ========================
+    document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',function(){if(this.disabled)return;document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));this.classList.add('active');document.getElementById(this.dataset.tab).classList.add('active');}));
+    document.getElementById('passwordInput').addEventListener('keypress',e=>{if(e.key==='Enter')login();});
+    document.getElementById('loginInput').addEventListener('keypress',e=>{if(e.key==='Enter')document.getElementById('passwordInput').focus();});
+    setStatus('offline','Ожидание входа');
 </script>
-
 </body>
 </html>
