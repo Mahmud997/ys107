@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Школьная система посещаемости</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #4F6F8F;
+            --primary-light: #7B9BB5;
+            --primary-dark: #3A5A7A;
+            --primary-bg: #F0F5FA;
+            --primary-gradient: linear-gradient(135deg, #E8F0F8 0%, #D5E4F0 100%);
+            --white: #FFFFFF;
+            --gray-50: #F9FAFB;
+            --gray-100: #F0F2F5;
+            --gray-200: #E4E7EC;
+            --gray-300: #CDD2D9;
+            --gray-400: #9CA3AF;
+            --gray-500: #6B7280;
+            --gray-600: #4B5563;
+            --gray-700: #374151;
+            --gray-800: #1F2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px rgba(79, 111, 143, 0.05);
+            --shadow: 0 4px 20px rgba(79, 111, 143, 0.08);
+            --shadow-lg: 0 8px 40px rgba(79, 111, 143, 0.12);
+            --shadow-xl: 0 12px 60px rgba(79, 111, 143, 0.15);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --radius-lg: 24px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--primary-bg);
+            color: var(--gray-800);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background-image: radial-gradient(ellipse at 20% 50%, rgba(79, 111, 143, 0.03) 0%, transparent 60%),
+                              radial-gradient(ellipse at 80% 20%, rgba(79, 111, 143, 0.04) 0%, transparent 50%);
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 1280px;
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xl);
+            padding: 32px;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .app-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--primary-gradient);
+            opacity: 0.6;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--gray-100);
+            flex-wrap: wrap;
+            gap: 16px;
+            position: relative;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: var(--primary-gradient);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: -0.5px;
+            box-shadow: 0 2px 8px rgba(79, 111, 143, 0.15);
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--gray-900);
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text span {
+            color: var(--primary-light);
+            font-weight: 400;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: var(--gray-50);
+            border-radius: 100px;
+            font-size: 13px;
+            color: var(--gray-500);
+            border: 1px solid var(--gray-100);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--gray-300);
+            transition: var(--transition);
+        }
+
+        .status-dot.online {
+            background: #34A853;
+            box-shadow: 0 0 8px rgba(52, 168, 83, 0.3);
+        }
+
+        .status-dot.offline {
+            background: #EA4335;
+            box-shadow: 0 0 8px rgba(234, 67, 53, 0.3);
+        }
+
+        .status-dot.syncing {
+            background: #FBBC04;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px 6px 12px;
+            border-radius: 100px;
+            font-size: 14px;
+            font-weight: 500;
+            background: var(--gray-50);
+            border: 1px solid var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .user-badge .role {
+            padding: 2px 10px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+
+        .role-zavuch {
+            background: rgba(79, 111, 143, 0.12);
+            color: var(--primary);
+        }
+
+        .role-teacher {
+            background: rgba(52, 168, 83, 0.12);
+            color: #2D7D46;
+        }
+
+        .session-id {
+            font-size: 11px;
+            color: var(--gray-400);
+            background: var(--gray-100);
+            padding: 2px 8px;
+            border-radius: 100px;
+            font-weight: 400;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 18px;
+            border: none;
+            border-radius: 100px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .btn:hover {
+            background: var(--gray-200);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 2px 8px rgba(79, 111, 143, 0.2);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            box-shadow: 0 4px 16px rgba(79, 111, 143, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--gray-200);
+            color: var(--gray-600);
+        }
+
+        .btn-outline:hover {
+            background: var(--gray-50);
+            border-color: var(--gray-300);
+        }
+
+        .btn-danger {
+            background: #FEE2E2;
+            color: #DC2626;
+        }
+
+        .btn-danger:hover {
+            background: #FECACA;
+        }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 13px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Login Screen */
+        .login-screen {
+            max-width: 420px;
+            margin: 40px auto 20px;
+            padding: 40px 36px;
+            background: var(--gray-50);
+            border-radius: var(--radius);
+            border: 1px solid var(--gray-100);
+        }
+
+        .login-screen h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--gray-900);
+            text-align: center;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .login-screen .subtitle {
+            text-align: center;
+            color: var(--gray-500);
+            font-size: 15px;
+            margin-bottom: 28px;
+        }
+
+        .login-screen label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 4px;
+        }
+
+        .login-screen input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 15px;
+            transition: var(--transition);
+            background: white;
+            color: var(--gray-800);
+            margin-bottom: 16px;
+        }
+
+        .login-screen input:focus {
+            outline: none;
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(79, 111, 143, 0.1);
+        }
+
+        .login-screen .btn {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+        }
+
+        .login-error {
+            color: #DC2626;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 12px;
+            min-height: 24px;
+        }
+
+        .login-hint {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--gray-200);
+            font-size: 13px;
+            color: var(--gray-400);
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        .login-hint code {
+            background: var(--gray-100);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--gray-600);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            padding: 20px 0 24px;
+        }
+
+        .stat-card {
+            background: var(--gray-50);
+            border-radius: var(--radius-sm);
+            padding: 16px 18px;
+            text-align: center;
+            border: 1px solid var(--gray-100);
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            border-color: var(--primary-light);
+            background: var(--white);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .stat-card .value {
+            display: block;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--gray-900);
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+        }
+
+        .stat-card .label {
+            display: block;
+            font-size: 13px;
+            color: var(--gray-500);
+            margin-top: 4px;
+            font-weight: 400;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            border-bottom: 1px solid var(--gray-100);
+            padding-bottom: 0;
+            margin-bottom: 24px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-500);
+            cursor: pointer;
+            transition: var(--transition);
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+            border-radius: 0;
+        }
+
+        .tab-btn:hover {
+            color: var(--gray-700);
+            background: var(--gray-50);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            background: transparent;
+        }
+
+        .tab-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .tab-btn.admin-only {
+            display: none;
+        }
+
+        /* Sections */
+        .section {
+            display: none;
+            animation: fadeIn 0.25s ease;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 18px;
+            letter-spacing: -0.3px;
+        }
+
+        /* Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .card-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--gray-50);
+            border-radius: var(--radius-sm);
+            padding: 20px 22px;
+            border: 1px solid var(--gray-100);
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            border-color: var(--primary-light);
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--gray-800);
+            margin-bottom: 14px;
+        }
+
+        .form-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .form-row > * {
+            flex: 1 0 auto;
+        }
+
+        .form-row label {
+            flex: 0 0 auto;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+
+        select, input, textarea {
+            padding: 10px 14px;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 14px;
+            background: white;
+            color: var(--gray-800);
+            transition: var(--transition);
+            width: 100%;
+        }
+
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(79, 111, 143, 0.08);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+        }
+
+        /* Tables */
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 12px 0;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--gray-100);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th {
+            background: var(--gray-50);
+            padding: 12px 14px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 13px;
+            border-bottom: 1px solid var(--gray-200);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 11px 14px;
+            border-bottom: 1px solid var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: var(--gray-50);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.2px;
+        }
+
+        .status-present {
+            background: #E6F4EA;
+            color: #1E7E34;
+        }
+
+        .status-late {
+            background: #FEF7E0;
+            color: #B45309;
+        }
+
+        .status-absent {
+            background: #FEE2E2;
+            color: #B91C1C;
+        }
+
+        .status-excused {
+            background: #E0F2FE;
+            color: #0369A1;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 32px 20px;
+            color: var(--gray-400);
+            font-size: 14px;
+        }
+
+        .text-muted {
+            color: var(--gray-500);
+            font-size: 14px;
+            margin-top: 6px;
+        }
+
+        .admin-only {
+            display: none;
+        }
+
+        .danger-zone {
+            border-color: #FECACA !important;
+            background: #FEF2F2 !important;
+        }
+
+        .danger-zone .card-title {
+            color: #DC2626;
+        }
+
+        /* Online users indicator */
+        .online-users {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--gray-500);
+            padding: 4px 12px;
+            background: var(--gray-50);
+            border-radius: 100px;
+            border: 1px solid var(--gray-100);
+        }
+
+        .online-users .count {
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .app-container {
+                padding: 20px 16px;
+                border-radius: var(--radius);
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+
+            .header-actions {
+                justify-content: space-between;
+            }
+
+            .logo-text {
+                font-size: 18px;
+            }
+
+            .login-screen {
+                padding: 28px 20px;
+                margin: 20px 0;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                padding: 12px 0 16px;
+            }
+
+            .stat-card .value {
+                font-size: 22px;
+            }
+
+            .card-grid {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+
+            .tabs {
+                gap: 2px;
+            }
+
+            .tab-btn {
+                padding: 8px 14px;
+                font-size: 13px;
+            }
+
+            .form-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .form-row > * {
+                flex: 1 1 auto;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .user-badge {
+                font-size: 13px;
+                padding: 4px 12px 4px 10px;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--gray-50);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--gray-300);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--gray-400);
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container" id="app">
+    <!-- Header -->
+    <header class="header">
+        <div class="logo-section">
+            <div class="logo-icon">S</div>
+            <div class="logo-text">School<span>Attendance</span></div>
+        </div>
+        <div class="header-actions">
+            <div class="connection-status">
+                <span class="status-dot offline" id="statusDot"></span>
+                <span id="statusText">Соединение</span>
+            </div>
+            <div id="onlineUsers" class="online-users hidden">
+                <span>👤</span>
+                <span class="count" id="usersCount">0</span>
+                <span>онлайн</span>
+            </div>
+            <div id="userBadge" class="user-badge hidden">
+                <span id="userName">Пользователь</span>
+                <span class="role" id="userRole">Роль</span>
+                <span class="session-id" id="sessionId">#0000</span>
+            </div>
+            <button id="logoutBtn" class="btn btn-outline btn-sm hidden" onclick="logout()">Выход</button>
+        </div>
+    </header>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <h2>Вход в систему</h2>
+        <p class="subtitle">Введите учётные данные для доступа</p>
+        <label for="loginInput">Логин</label>
+        <input type="text" id="loginInput" placeholder="Введите логин" value="zavuch">
+        <label for="passwordInput">Пароль</label>
+        <input type="password" id="passwordInput" placeholder="Введите пароль" value="123">
+        <button class="btn btn-primary" onclick="login()">Войти</button>
+        <div id="loginError" class="login-error"></div>
+        <div class="login-hint">
+            <strong>Завуч:</strong> <code>zavuch</code> / <code>123</code><br>
+            <strong>Дежурный (общий):</strong> <code>teacher</code> / <code>123</code> — <em>несколько человек могут войти одновременно</em>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="mainApp" class="hidden">
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="value" id="totalStudents">0</span>
+                <span class="label">Учеников</span>
+            </div>
+            <div class="stat-card">
+                <span class="value" id="todayRecords">0</span>
+                <span class="label">Записей сегодня</span>
+            </div>
+            <div class="stat-card">
+                <span class="value" id="todayLate">0</span>
+                <span class="label">Опозданий</span>
+            </div>
+            <div class="stat-card">
+                <span class="value" id="todayAbsent">0</span>
+                <span class="label">Отсутствий</span>
+            </div>
+            <div class="stat-card">
+                <span class="value" id="totalClasses">0</span>
+                <span class="label">Классов</span>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs" id="tabsContainer">
+            <button class="tab-btn active" data-tab="tab-mark">Отметка</button>
+            <button class="tab-btn" data-tab="tab-today">Сегодня</button>
+            <button class="tab-btn" data-tab="tab-journal">Журнал</button>
+            <button class="tab-btn" data-tab="tab-students">Ученики</button>
+            <button class="tab-btn admin-only" data-tab="tab-admin" id="adminTab">Администрирование</button>
+        </div>
+
+        <!-- Tab: Mark -->
+        <div id="tab-mark" class="section active">
+            <h3 class="section-title">Отметка посещаемости</h3>
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-title">Выбор ученика</div>
+                    <select id="studentSelect" style="width:100%; margin-bottom:14px;"></select>
+                    <div class="form-row" style="margin-top:4px;">
+                        <select id="statusSelect" style="flex:1.5;">
+                            <option value="present">Присутствовал</option>
+                            <option value="late">Опоздал</option>
+                            <option value="absent">Отсутствовал</option>
+                            <option value="excused">Уважительная причина</option>
+                        </select>
+                        <input type="text" id="noteInput" placeholder="Примечание" style="flex:2;">
+                    </div>
+                    <button class="btn btn-primary" onclick="markAttendance()" style="width:100%; margin-top:12px;">Сохранить отметку</button>
+                    <div class="text-muted" style="margin-top:10px;">Сегодня: <span id="todayDate"></span></div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Записи за сегодня</div>
+                    <div class="table-wrapper" style="max-height:300px; overflow-y:auto;">
+                        <table>
+                            <thead><tr><th>Время</th><th>ФИО</th><th>Класс</th><th>Статус</th></tr></thead>
+                            <tbody id="todayTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Today -->
+        <div id="tab-today" class="section">
+            <h3 class="section-title">Статистика за сегодня</h3>
+            <div class="stats-grid" style="padding-top:0; padding-bottom:12px;">
+                <div class="stat-card">
+                    <span class="value" id="todayTotal">0</span>
+                    <span class="label">Всего записей</span>
+                </div>
+                <div class="stat-card">
+                    <span class="value" id="todayLate2">0</span>
+                    <span class="label">Опозданий</span>
+                </div>
+                <div class="stat-card">
+                    <span class="value" id="todayAbsent2">0</span>
+                    <span class="label">Отсутствий</span>
+                </div>
+            </div>
+            <div class="card-grid" style="margin-bottom:18px;">
+                <div class="card">
+                    <div class="card-title">По классам</div>
+                    <div id="classBreakdown"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title">По статусам</div>
+                    <div id="statusBreakdown"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">Последние записи</div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead><tr><th>Время</th><th>ФИО</th><th>Класс</th><th>Статус</th></tr></thead>
+                        <tbody id="todayFullTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Journal -->
+        <div id="tab-journal" class="section">
+            <h3 class="section-title">Полный журнал</h3>
+            <div class="card" style="margin-bottom:16px;">
+                <div class="form-row">
+                    <label for="filterClass">Класс</label>
+                    <select id="filterClass" onchange="renderJournal()" style="flex:1;">
+                        <option value="">Все классы</option>
+                    </select>
+                    <label for="filterName">ФИО</label>
+                    <input type="text" id="filterName" placeholder="Поиск..." oninput="renderJournal()" style="flex:2;">
+                </div>
+            </div>
+            <div class="table-wrapper" style="max-height:500px; overflow-y:auto;">
+                <table>
+                    <thead><tr><th>Дата</th><th>ФИО</th><th>Класс</th><th>Статус</th><th>Примечание</th><th>Отметил</th></tr></thead>
+                    <tbody id="journalTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Students -->
+        <div id="tab-students" class="section">
+            <h3 class="section-title">Список учеников</h3>
+            <div class="card admin-only" style="margin-bottom:16px;">
+                <div class="form-row">
+                    <input type="text" id="studentName" placeholder="ФИО" style="flex:2;">
+                    <input type="text" id="studentClass" placeholder="Класс (напр. 5А)" style="flex:1;">
+                    <button class="btn btn-primary" onclick="addStudent()">Добавить</button>
+                </div>
+            </div>
+            <div class="table-wrapper" style="max-height:350px; overflow-y:auto; margin-bottom:20px;">
+                <table>
+                    <thead><tr><th>ФИО</th><th>Класс</th><th>Действие</th></tr></thead>
+                    <tbody id="studentsTableBody"></tbody>
+                </table>
+            </div>
+            <div class="card">
+                <div class="card-title">Статистика ученика</div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <select id="studentStatSelect" onchange="renderStudentStats()" style="flex:1;"></select>
+                </div>
+                <div id="studentStatsDisplay">
+                    <p style="font-size:14px; color:var(--gray-600);">
+                        Всего: <span id="statTotal" style="font-weight:600;color:var(--gray-800);">0</span> &nbsp;·&nbsp;
+                        Опозданий: <span id="statLate2" style="font-weight:600;color:var(--gray-800);">0</span> &nbsp;·&nbsp;
+                        Отсутствий: <span id="statAbsent2" style="font-weight:600;color:var(--gray-800);">0</span> &nbsp;·&nbsp;
+                        Нарушений: <span id="statViolation" style="font-weight:600;color:var(--gray-800);">—</span>
+                    </p>
+                    <div class="table-wrapper" style="margin-top:10px; max-height:200px; overflow-y:auto;">
+                        <table>
+                            <thead><tr><th>Дата</th><th>Статус</th><th>Примечание</th></tr></thead>
+                            <tbody id="statDetailTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Admin -->
+        <div id="tab-admin" class="section admin-only">
+            <h3 class="section-title">Администрирование</h3>
+            <div class="card danger-zone">
+                <div class="card-title">Управление данными</div>
+                <p style="font-size:14px; color:var(--gray-600); margin-bottom:12px;">
+                    Это действие удаляет все записи посещаемости. Ученики останутся в списке.
+                </p>
+                <button class="btn btn-danger" onclick="resetAll()">Сбросить все записи</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ======================== CONFIGURATION ========================
+    // ⚠️ REPLACE WITH YOUR GOOGLE APPS SCRIPT URL
+    const SCRIPT_URL = 'https://script.google.com/macros/s/ВАШ_УНИКАЛЬНЫЙ_ID/exec';
+
+    // ======================== STATE ========================
+    let currentUser = null;
+    let appData = { students: [], records: [] };
+    let today = new Date().toISOString().split('T')[0];
+    let syncInterval = null;
+    let sessionId = null;
+
+    // Хранилище активных сессий (в реальном проекте — на сервере)
+    // Здесь используется localStorage для демонстрации
+    let activeSessions = [];
+
+    // ======================== API ========================
+    async function callApi(action, params = {}) {
+        const url = new URL(SCRIPT_URL);
+        url.searchParams.set('action', action);
+        for (const [key, value] of Object.entries(params)) {
+            if (value !== undefined && value !== null) {
+                url.searchParams.set(key, value);
+            }
+        }
+        try {
+            const response = await fetch(url.toString());
+            return await response.json();
+        } catch (error) {
+            console.error('API error:', error);
+            return { error: error.message };
+        }
+    }
+
+    // ======================== SESSION MANAGEMENT ========================
+    function generateSessionId() {
+        return Math.random().toString(36).substring(2, 6).toUpperCase();
+    }
+
+    function registerSession(login) {
+        sessionId = generateSessionId();
+        // Сохраняем сессию в localStorage (имитация общей базы)
+        let sessions = JSON.parse(localStorage.getItem('activeSessions') || '[]');
+        sessions = sessions.filter(s => s.login !== login || (Date.now() - s.timestamp) > 60000);
+        sessions.push({ login, sessionId, timestamp: Date.now() });
+        localStorage.setItem('activeSessions', JSON.stringify(sessions));
+        updateOnlineUsers();
+        return sessionId;
+    }
+
+    function unregisterSession() {
+        if (!sessionId) return;
+        let sessions = JSON.parse(localStorage.getItem('activeSessions') || '[]');
+        sessions = sessions.filter(s => s.sessionId !== sessionId);
+        localStorage.setItem('activeSessions', JSON.stringify(sessions));
+        updateOnlineUsers();
+    }
+
+    function updateOnlineUsers() {
+        let sessions = JSON.parse(localStorage.getItem('activeSessions') || '[]');
+        // Очищаем старые сессии (старше 60 секунд)
+        sessions = sessions.filter(s => (Date.now() - s.timestamp) < 60000);
+        localStorage.setItem('activeSessions', JSON.stringify(sessions));
+        
+        const uniqueUsers = new Set(sessions.map(s => s.login));
+        const count = uniqueUsers.size;
+        const el = document.getElementById('onlineUsers');
+        if (count > 0) {
+            el.classList.remove('hidden');
+            document.getElementById('usersCount').textContent = count;
+        } else {
+            el.classList.add('hidden');
+        }
+    }
+
+    // Периодическое обновление списка онлайн
+    setInterval(updateOnlineUsers, 10000);
+
+    // ======================== AUTH ========================
+    async function login() {
+        const login = document.getElementById('loginInput').value.trim();
+        const password = document.getElementById('passwordInput').value.trim();
+        const errorEl = document.getElementById('loginError');
+
+        if (!login || !password) {
+            errorEl.textContent = 'Введите логин и пароль';
+            return;
+        }
+
+        errorEl.textContent = 'Подключение...';
+        const result = await callApi('login', { login, password });
+
+        if (result.success) {
+            currentUser = { login, role: result.role, name: result.name };
+            errorEl.textContent = '';
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+
+            // Регистрируем сессию
+            const sid = registerSession(login);
+            document.getElementById('sessionId').textContent = '#' + sid;
+
+            const badge = document.getElementById('userBadge');
+            document.getElementById('userName').textContent = result.name || result.login;
+            const roleEl = document.getElementById('userRole');
+            roleEl.textContent = result.role === 'zavuch' ? 'Завуч' : 'Дежурный';
+            roleEl.className = `role ${result.role === 'zavuch' ? 'role-zavuch' : 'role-teacher'}`;
+            badge.classList.remove('hidden');
+            document.getElementById('logoutBtn').classList.remove('hidden');
+
+            applyRolePermissions();
+            await loadData();
+            startAutoSync();
+            updateOnlineUsers();
+        } else {
+            errorEl.textContent = 'Неверный логин или пароль';
+        }
+    }
+
+    function logout() {
+        unregisterSession();
+        currentUser = null;
+        clearInterval(syncInterval);
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('mainApp').classList.add('hidden');
+        document.getElementById('userBadge').classList.add('hidden');
+        document.getElementById('logoutBtn').classList.add('hidden');
+        setStatus('offline', 'Отключено');
+        updateOnlineUsers();
+    }
+
+    // ======================== STATUS ========================
+    function setStatus(state, text) {
+        const dot = document.getElementById('statusDot');
+        const label = document.getElementById('statusText');
+        dot.className = `status-dot ${state}`;
+        label.textContent = text;
+    }
+
+    // ======================== DATA LOADING ========================
+    async function loadData() {
+        try {
+            setStatus('syncing', 'Синхронизация...');
+
+            const [students, records] = await Promise.all([
+                callApi('getStudents'),
+                callApi('getRecords')
+            ]);
+
+            if (!students.error) appData.students = students;
+            if (!records.error) appData.records = records;
+
+            setStatus('online', 'Онлайн');
+            renderAll();
+        } catch (error) {
+            setStatus('offline', 'Ошибка');
+            console.error('Load error:', error);
+        }
+    }
+
+    function startAutoSync() {
+        clearInterval(syncInterval);
+        syncInterval = setInterval(() => {
+            if (currentUser) {
+                // Обновляем сессию (продлеваем жизнь)
+                let sessions = JSON.parse(localStorage.getItem('activeSessions') || '[]');
+                const idx = sessions.findIndex(s => s.sessionId === sessionId);
+                if (idx !== -1) {
+                    sessions[idx].timestamp = Date.now();
+                    localStorage.setItem('activeSessions', JSON.stringify(sessions));
+                }
+                updateOnlineUsers();
+
+                callApi('getRecords').then(records => {
+                    if (!records.error && JSON.stringify(records) !== JSON.stringify(appData.records)) {
+                        appData.records = records;
+                        renderAll();
+                    }
+                });
+                callApi('getStudents').then(students => {
+                    if (!students.error && JSON.stringify(students) !== JSON.stringify(appData.students)) {
+                        appData.students = students;
+                        renderAll();
+                    }
+                });
+            }
+        }, 5000);
+    }
+
+    // ======================== PERMISSIONS ========================
+    function applyRolePermissions() {
+        const isZavuch = currentUser && currentUser.role === 'zavuch';
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.style.display = isZavuch ? '' : 'none';
+        });
+        document.getElementById('adminTab').style.display = isZavuch ? 'inline-block' : 'none';
+    }
+
+    // ======================== RENDER ========================
+    function renderAll() {
+        renderStudents();
+        renderStudentSelects();
+        renderTodayStats();
+        renderTodayTable();
+        renderTodayFull();
+        renderJournal();
+        renderStudentStats();
+        renderClassFilter();
+        renderStatsSummary();
+        document.getElementById('todayDate').textContent = new Date().toLocaleDateString('ru-RU', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    }
+
+    function renderStatsSummary() {
+        const total = appData.students.length;
+        const classes = new Set(appData.students.map(s => s.class));
+        const todayRecs = appData.records.filter(r => r.date === today);
+        const late = todayRecs.filter(r => r.status === 'late').length;
+        const absent = todayRecs.filter(r => r.status === 'absent').length;
+        document.getElementById('totalStudents').textContent = total;
+        document.getElementById('todayRecords').textContent = todayRecs.length;
+        document.getElementById('todayLate').textContent = late;
+        document.getElementById('todayAbsent').textContent = absent;
+        document.getElementById('totalClasses').textContent = classes.size;
+    }
+
+    function renderStudents() {
+        const tbody = document.getElementById('studentsTableBody');
+        const isZavuch = currentUser && currentUser.role === 'zavuch';
+        if (appData.students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Список учеников пуст</td></tr>';
+            return;
+        }
+        tbody.innerHTML = appData.students.map(s => `
+            <tr>
+                <td><strong>${s.name}</strong></td>
+                <td>${s.class}</td>
+                <td>
+                    ${isZavuch ? `<button class="btn btn-danger btn-sm" onclick="removeStudent('${s.id}')">Удалить</button>` : '—'}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderStudentSelects() {
+        ['studentSelect', 'studentStatSelect'].forEach(id => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            const currentVal = sel.value;
+            sel.innerHTML = '<option value="">— Выберите ученика —</option>' +
+                appData.students.map(s => `<option value="${s.id}">${s.name} (${s.class})</option>`).join('');
+            if (currentVal && appData.students.some(s => s.id === currentVal)) {
+                sel.value = currentVal;
+            }
+        });
+    }
+
+    function renderTodayStats() {
+        const todayRecs = appData.records.filter(r => r.date === today);
+        document.getElementById('todayTotal').textContent = todayRecs.length;
+        document.getElementById('todayLate2').textContent = todayRecs.filter(r => r.status === 'late').length;
+        document.getElementById('todayAbsent2').textContent = todayRecs.filter(r => r.status === 'absent').length;
+
+        const classMap = {};
+        todayRecs.forEach(r => {
+            const cls = getStudentClass(r.studentId);
+            classMap[cls] = (classMap[cls] || 0) + 1;
+        });
+        document.getElementById('classBreakdown').innerHTML = Object.entries(classMap)
+            .map(([cls, count]) => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gray-100);"><span>${cls}</span><span style="font-weight:600;">${count}</span></div>`)
+            .join('') || '<div class="empty-state">Нет записей</div>';
+
+        const statusMap = {};
+        todayRecs.forEach(r => {
+            statusMap[r.status] = (statusMap[r.status] || 0) + 1;
+        });
+        document.getElementById('statusBreakdown').innerHTML = Object.entries(statusMap)
+            .map(([st, count]) => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gray-100);"><span>${getStatusLabel(st)}</span><span style="font-weight:600;">${count}</span></div>`)
+            .join('') || '<div class="empty-state">Нет записей</div>';
+    }
+
+    function renderTodayTable() {
+        const tbody = document.getElementById('todayTableBody');
+        const todayRecs = appData.records.filter(r => r.date === today).slice(-10).reverse();
+        tbody.innerHTML = todayRecs.map(r => `
+            <tr>
+                <td>${r.time || '—'}</td>
+                <td>${getStudentName(r.studentId)}</td>
+                <td>${getStudentClass(r.studentId)}</td>
+                <td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
+            </tr>
+        `).join('') || '<tr><td colspan="4" class="empty-state">Нет записей сегодня</td></tr>';
+    }
+
+    function renderTodayFull() {
+        const tbody = document.getElementById('todayFullTable');
+        const todayRecs = appData.records.filter(r => r.date === today).slice().reverse();
+        tbody.innerHTML = todayRecs.map(r => `
+            <tr>
+                <td>${r.time || '—'}</td>
+                <td>${getStudentName(r.studentId)}</td>
+                <td>${getStudentClass(r.studentId)}</td>
+                <td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
+            </tr>
+        `).join('') || '<tr><td colspan="4" class="empty-state">Нет записей сегодня</td></tr>';
+    }
+
+    function renderJournal() {
+        const filterClass = document.getElementById('filterClass').value;
+        const filterName = document.getElementById('filterName').value.toLowerCase();
+        const tbody = document.getElementById('journalTableBody');
+        let records = appData.records.slice().reverse();
+        if (filterClass) {
+            records = records.filter(r => getStudentClass(r.studentId) === filterClass);
+        }
+        if (filterName) {
+            records = records.filter(r => getStudentName(r.studentId).toLowerCase().includes(filterName));
+        }
+        tbody.innerHTML = records.map(r => `
+            <tr>
+                <td>${r.date}</td>
+                <td><strong>${getStudentName(r.studentId)}</strong></td>
+                <td>${getStudentClass(r.studentId)}</td>
+                <td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
+                <td>${r.note || '—'}</td>
+                <td style="font-size:13px;color:var(--gray-500);">${r.teacher || '—'}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="6" class="empty-state">Нет записей</td></tr>';
+    }
+
+    function renderClassFilter() {
+        const sel = document.getElementById('filterClass');
+        const classes = [...new Set(appData.students.map(s => s.class))];
+        const current = sel.value;
+        sel.innerHTML = '<option value="">Все классы</option>' +
+            classes.map(c => `<option value="${c}">${c}</option>`).join('');
+        if (current) sel.value = current;
+    }
+
+    function renderStudentStats() {
+        const sel = document.getElementById('studentStatSelect');
+        const id = sel.value;
+        if (!id) {
+            ['statTotal', 'statLate2', 'statAbsent2'].forEach(el => document.getElementById(el).textContent = '0');
+            document.getElementById('statViolation').textContent = '—';
+            document.getElementById('statDetailTable').innerHTML = '';
+            return;
+        }
+        const records = appData.records.filter(r => r.studentId === id);
+        const total = records.length;
+        const late = records.filter(r => r.status === 'late').length;
+        const absent = records.filter(r => r.status === 'absent').length;
+        const violation = total ? ((late + absent) / total * 100).toFixed(1) + '%' : '—';
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statLate2').textContent = late;
+        document.getElementById('statAbsent2').textContent = absent;
+        document.getElementById('statViolation').textContent = violation;
+
+        const tbody = document.getElementById('statDetailTable');
+        tbody.innerHTML = records.slice().reverse().map(r => `
+            <tr>
+                <td>${r.date}</td>
+                <td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
+                <td>${r.note || '—'}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="3" class="empty-state">Нет записей</td></tr>';
+    }
+
+    // ======================== HELPERS ========================
+    function getStudentName(id) {
+        const s = appData.students.find(st => st.id === id);
+        return s ? s.name : 'Удален';
+    }
+
+    function getStudentClass(id) {
+        const s = appData.students.find(st => st.id === id);
+        return s ? s.class : '—';
+    }
+
+    function getStatusLabel(status) {
+        const map = { present: 'Присутствовал', late: 'Опоздал', absent: 'Отсутствовал', excused: 'Уважительная' };
+        return map[status] || status;
+    }
+
+    function getStatusClass(status) {
+        const map = { present: 'status-present', late: 'status-late', absent: 'status-absent', excused: 'status-excused' };
+        return map[status] || '';
+    }
+
+    // ======================== ACTIONS ========================
+    async function markAttendance() {
+        if (!currentUser) { alert('Войдите в систему'); return; }
+        const studentId = document.getElementById('studentSelect').value;
+        const status = document.getElementById('statusSelect').value;
+        const note = document.getElementById('noteInput').value.trim();
+        if (!studentId) { alert('Выберите ученика'); return; }
+
+        const now = new Date();
+        const record = {
+            studentId: studentId,
+            date: today,
+            time: now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+            status: status,
+            note: note,
+            teacher: currentUser.name || currentUser.login + ' (#' + sessionId + ')'
+        };
+
+        const result = await callApi('addRecord', record);
+        if (result.success) {
+            record.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+            appData.records.push(record);
+            renderAll();
+            document.getElementById('noteInput').value = '';
+            setStatus('online', 'Сохранено');
+            setTimeout(() => setStatus('online', 'Онлайн'), 1500);
+        } else {
+            alert('Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+        }
+    }
+
+    async function addStudent() {
+        if (!currentUser || currentUser.role !== 'zavuch') {
+            alert('Только завуч может добавлять учеников');
+            return;
+        }
+        const name = document.getElementById('studentName').value.trim();
+        const cls = document.getElementById('studentClass').value.trim();
+        if (!name || !cls) { alert('Введите ФИО и класс'); return; }
+        if (appData.students.some(s => s.name === name)) { alert('Такой ученик уже есть'); return; }
+
+        const result = await callApi('addStudent', { name, class: cls });
+        if (result.success) {
+            await loadData();
+            document.getElementById('studentName').value = '';
+            document.getElementById('studentClass').value = '';
+        } else {
+            alert('Ошибка при добавлении');
+        }
+    }
+
+    async function removeStudent(id) {
+        if (!currentUser || currentUser.role !== 'zavuch') {
+            alert('Только завуч может удалять учеников');
+            return;
+        }
+        if (!confirm('Удалить ученика и все его записи?')) return;
+
+        await callApi('removeStudent', { id });
+        await callApi('removeStudentRecords', { studentId: id });
+        await loadData();
+    }
+
+    async function resetAll() {
+        if (!currentUser || currentUser.role !== 'zavuch') {
+            alert('Только завуч может сбросить данные');
+            return;
+        }
+        if (!confirm('Удалить все записи посещаемости? Ученики останутся.')) return;
+        alert('Очистите лист "records" в Google Таблице вручную');
+        await loadData();
+    }
+
+    // ======================== TABS ========================
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (this.disabled) return;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            this.classList.add('active');
+            document.getElementById(this.dataset.tab).classList.add('active');
+        });
+    });
+
+    // ======================== INIT ========================
+    document.getElementById('passwordInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') login();
+    });
+    document.getElementById('loginInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') document.getElementById('passwordInput').focus();
+    });
+
+    setStatus('offline', 'Ожидание входа');
+    updateOnlineUsers();
+</script>
+
+</body>
+</html>
