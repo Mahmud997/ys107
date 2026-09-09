@@ -42,6 +42,7 @@ function handle_(p) {
     if (action === 'getRecords') return withAuth_(p, getRecords_);
     if (action === 'addRecord') return withAuth_(p, addRecord_);
     if (action === 'addStudent') return withRole_(p, 'zavuch', addStudent_);
+    if (action === 'importStudents') return withRole_(p, 'zavuch', importStudents_);
     if (action === 'removeStudent') return withRole_(p, 'zavuch', removeStudent_);
     if (action === 'removeStudentRecords') return withRole_(p, 'zavuch', removeStudentRecords_);
     if (action === 'resetAll') return withRole_(p, 'zavuch', resetAll_);
@@ -210,6 +211,33 @@ function addStudent_(p,user) {
   const id=makeId_();
   s.appendRow([id,name,cls]);
   return json_({success:true,id,name,class:cls});
+}
+
+function importStudents_(p,user) {
+  let students=[];
+  try { students=JSON.parse(String(p.students||'[]')); } catch(e) { return json_({success:false,error:'Неверный формат данных Excel.'}); }
+  if (!Array.isArray(students) || !students.length) return json_({success:false,error:'В Excel нет учеников.'});
+  const s=sheet_(SHEETS.students);
+  const data=s.getDataRange().getValues();
+  const existing=new Set(data.slice(1).filter(r=>r[0]).map(r=>String(r[1]).trim().toLowerCase()+'|'+String(r[2]).trim().toLowerCase()));
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    let added=0, skipped=0, invalid=0;
+    const out=[];
+    students.forEach(item=>{
+      const name=String(item.name||'').trim();
+      const cls=String(item.class||'').trim();
+      if(!name || !cls){ invalid++; return; }
+      const key=name.toLowerCase()+'|'+cls.toLowerCase();
+      if(existing.has(key)){ skipped++; return; }
+      const id=makeId_();
+      out.push([id,name,cls]);
+      existing.add(key); added++;
+    });
+    if(out.length) s.getRange(s.getLastRow()+1,1,out.length,3).setValues(out);
+    return json_({success:true,added,skipped,invalid});
+  } finally { lock.releaseLock(); }
 }
 
 function removeStudent_(p,user) {

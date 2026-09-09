@@ -837,8 +837,15 @@
             <h3 class="section-title">Отметка посещаемости</h3>
             <div class="card-grid">
                 <div class="card">
-                    <div class="card-title">Выбор ученика</div>
-                    <select id="studentSelect" style="width:100%; margin-bottom:14px;"></select>
+                    <div class="card-title">Отметка по классу</div>
+                    <div class="form-row" style="margin-bottom:10px;">
+                        <select id="markClassSelect" onchange="renderMarkStudents()" style="flex:1;">
+                            <option value="">— Сначала выберите класс —</option>
+                        </select>
+                        <input type="search" id="markStudentSearch" placeholder="Поиск по фамилии или ФИО" oninput="renderMarkStudents()" style="flex:1.5;">
+                    </div>
+                    <select id="studentSelect" style="width:100%; margin-bottom:14px;" disabled></select>
+                    <div class="text-muted" style="margin:-5px 0 12px;">Выберите класс, затем ученика из списка. Можно искать по фамилии.</div>
                     <div class="form-row" style="margin-top:4px;">
                         <select id="statusSelect" style="flex:1.5;">
                             <option value="present">Присутствовал</option>
@@ -931,11 +938,21 @@
         <div id="tab-students" class="section">
             <h3 class="section-title">Список учеников</h3>
             <div class="card admin-only" style="margin-bottom:16px;">
+                <div class="card-title">Добавление ученика вручную</div>
                 <div class="form-row">
                     <input type="text" id="studentName" placeholder="ФИО" style="flex:2;">
-                    <input type="text" id="studentClass" placeholder="Класс (напр. 5А)" style="flex:1;">
+                    <input type="text" id="studentClass" placeholder="Класс (например, 5А)" style="flex:1;">
                     <button class="btn btn-primary" onclick="addStudent()">Добавить</button>
                 </div>
+                <hr style="border:0;border-top:1px solid var(--gray-200);margin:16px 0;">
+                <div class="card-title">Импорт учеников из Excel</div>
+                <p class="text-muted" style="margin-bottom:10px;">Загрузите Excel-файл с колонками <strong>№</strong>, <strong>ФИО</strong>, <strong>Класс</strong>. Номер можно оставить — система создаст свой ID автоматически.</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <input type="file" id="studentsExcelFile" accept=".xlsx,.xls" style="max-width:100%;">
+                    <button class="btn btn-primary" onclick="importStudentsExcel()">Импортировать Excel</button>
+                    <button class="btn" onclick="downloadStudentsTemplate()">Скачать пример Excel</button>
+                </div>
+                <div id="importStudentsResult" class="text-muted" style="margin-top:10px;"></div>
             </div>
             <div class="table-wrapper" style="max-height:350px; overflow-y:auto; margin-bottom:20px;">
                 <table>
@@ -982,7 +999,7 @@
 <script>
     // ======================== CONFIGURATION ========================
     // Укажи URL опубликованного Google Apps Script Web App.
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0_agtmhZ6pJeZYYI3QXsQSCDCK_GBL_xaO_m9DBnlD1fxZ6MnRb9kOyELuQp4d2p0/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLjSgq3ugXkVTs-4QWBeEtaH7yREDTQ-xQx9CvCot7MeO8nrD56N9ZBWLqY5V27oYx/exec';
 
     // ======================== STATE ========================
     let currentUser = null;
@@ -1137,9 +1154,36 @@
         tbody.innerHTML=appData.students.map(s=>`<tr><td><strong>${escapeHtml(s.name)}</strong></td><td>${escapeHtml(s.class)}</td><td>${isZ?`<button class="btn btn-danger btn-sm" onclick="removeStudent('${s.id}')">Удалить</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="3" class="empty-state">Нет учеников</td></tr>';
     }
     function renderStudentSelects(){
-        const sel=document.getElementById('studentSelect'), stat=document.getElementById('studentStatSelect'); const current=sel.value, currentStat=stat.value;
-        const opts='<option value="">Выберите ученика...</option>'+appData.students.slice().sort((a,b)=>a.class.localeCompare(b.class,'ru')||a.name.localeCompare(b.name,'ru')).map(s=>`<option value="${s.id}">${escapeHtml(s.class)} — ${escapeHtml(s.name)}</option>`).join('');
-        sel.innerHTML=opts;stat.innerHTML=opts; if(appData.students.some(s=>s.id===current))sel.value=current;if(appData.students.some(s=>s.id===currentStat))stat.value=currentStat;
+        const stat=document.getElementById('studentStatSelect');
+        const currentStat=stat.value;
+        const opts='<option value="">Выберите ученика...</option>'+appData.students.slice().sort((a,b)=>a.class.localeCompare(b.class,'ru')||a.name.localeCompare(b.name,'ru')).map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.class)} — ${escapeHtml(s.name)}</option>`).join('');
+        stat.innerHTML=opts;
+        if(appData.students.some(s=>s.id===currentStat)) stat.value=currentStat;
+        renderMarkClasses();
+        renderMarkStudents();
+    }
+    function renderMarkClasses(){
+        const sel=document.getElementById('markClassSelect');
+        if(!sel) return;
+        const current=sel.value;
+        const classes=[...new Set(appData.students.map(s=>String(s.class).trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru',{numeric:true}));
+        sel.innerHTML='<option value="">— Выберите класс —</option>'+classes.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        if(classes.includes(current)) sel.value=current;
+    }
+    function renderMarkStudents(){
+        const classSel=document.getElementById('markClassSelect');
+        const studentSel=document.getElementById('studentSelect');
+        const searchEl=document.getElementById('markStudentSearch');
+        if(!classSel||!studentSel) return;
+        const cls=classSel.value;
+        const q=(searchEl?.value||'').trim().toLowerCase();
+        const current=studentSel.value;
+        let list=appData.students.filter(s=>!cls || s.class===cls);
+        if(q) list=list.filter(s=>s.name.toLowerCase().includes(q));
+        list=list.slice().sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+        studentSel.disabled=!cls;
+        studentSel.innerHTML=(cls?'<option value="">— Выберите ученика —</option>':'<option value="">— Сначала выберите класс —</option>')+list.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+        if(list.some(s=>s.id===current)) studentSel.value=current;
     }
     function renderTodayStats(){renderStatsSummary();}
     function renderTodayTable(){
@@ -1182,6 +1226,47 @@
         const name=document.getElementById('studentName').value.trim(),cls=document.getElementById('studentClass').value.trim();if(!name||!cls){alert('Введите ФИО и класс');return;}
         const result=await callApi('addStudent',{name,class:cls});if(result.success){await loadData();document.getElementById('studentName').value='';document.getElementById('studentClass').value='';}else alert(result.error||'Ошибка');
     }
+    async function importStudentsExcel(){
+        if(!currentUser||currentUser.role!=='zavuch'){alert('Только завуч может импортировать учеников');return;}
+        const file=document.getElementById('studentsExcelFile').files[0];
+        const resultEl=document.getElementById('importStudentsResult');
+        if(!file){alert('Выберите Excel-файл');return;}
+        if(typeof XLSX==='undefined'){alert('Библиотека Excel не загрузилась.');return;}
+        try{
+            resultEl.textContent='Читаем Excel-файл...';
+            const buffer=await file.arrayBuffer();
+            const wb=XLSX.read(buffer,{type:'array'});
+            const ws=wb.Sheets[wb.SheetNames[0]];
+            const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+            const students=rows.map((r,i)=>{
+                const name=r['ФИО']??r['Фио']??r['фио']??r['Ученик']??r['Ученик ФИО']??'';
+                const cls=r['Класс']??r['класс']??r['Class']??'';
+                return {name:String(name).trim(),class:String(cls).trim(),row:i+2};
+            }).filter(x=>x.name&&x.class);
+            if(!students.length){alert('Не найдены строки с ФИО и классом. Используйте пример Excel.');return;}
+            resultEl.textContent=`Найдено учеников: ${students.length}. Отправляем на сервер...`;
+            const result=await callApi('importStudents',{students:JSON.stringify(students)});
+            if(!result.success){alert(result.error||'Ошибка импорта');resultEl.textContent='Ошибка импорта';return;}
+            await loadData();
+            resultEl.textContent=`Импорт завершён: добавлено ${result.added||0}, пропущено дублей ${result.skipped||0}, ошибок строк ${result.invalid||0}.`;
+            document.getElementById('studentsExcelFile').value='';
+        }catch(err){console.error(err);resultEl.textContent='Ошибка чтения Excel-файла';alert('Не удалось прочитать Excel: '+err.message);}
+    }
+    function downloadStudentsTemplate(){
+        if(typeof XLSX==='undefined'){alert('Библиотека Excel не загрузилась.');return;}
+        const rows=[
+            {'№':1,'ФИО':'Иванов Иван Иванович','Класс':'5А'},
+            {'№':2,'ФИО':'Петрова Анна Сергеевна','Класс':'5А'},
+            {'№':3,'ФИО':'Садыков Данияр Ерланович','Класс':'5Б'},
+            {'№':4,'ФИО':'Ахметова Алина Нурлановна','Класс':'6А'}
+        ];
+        const wb=XLSX.utils.book_new();
+        const ws=XLSX.utils.json_to_sheet(rows);
+        ws['!cols']=[{wch:8},{wch:32},{wch:12}];
+        XLSX.utils.book_append_sheet(wb,ws,'Ученики');
+        XLSX.writeFile(wb,'пример_учеников.xlsx');
+    }
+
     async function removeStudent(id){
         if(!currentUser||currentUser.role!=='zavuch')return;if(!confirm('Удалить ученика и все его записи?'))return;
         const a=await callApi('removeStudent',{id});if(!a.success){alert(a.error||'Ошибка');return;}await callApi('removeStudentRecords',{studentId:id});await loadData();
