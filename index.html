@@ -1009,7 +1009,7 @@
 <script>
     // ======================== CONFIGURATION ========================
     // Укажи URL опубликованного Google Apps Script Web App.
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzAKbHRyh4sln3tPlIi3AlG-4GrcJdQM3zeMANiDUD3XtK9Kjn4wrGnavagiqh1b9N9/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLjSgq3ugXkVTs-4QWBeEtaH7yREDTQ-xQx9CvCot7MeO8nrD56N9ZBWLqY5V27oYx/exec';
 
     // ======================== STATE ========================
     let currentUser = null;
@@ -1259,33 +1259,67 @@
         input.value='';
     }
 
+    function normalizeExcelHeader(value){
+        return String(value||'').replace(/\uFEFF/g,'').trim().toLowerCase().replace(/ё/g,'е').replace(/[^a-zа-я0-9]+/gi,'');
+    }
+
     async function importStudentsExcel(source){
-        if(!currentUser||currentUser.role!=='zavuch'){alert('Только завуч может импортировать учеников');return;}
+        if(!currentUser || currentUser.role!=='zavuch'){
+            alert('Только завуч может импортировать учеников');
+            return;
+        }
         const topInput=document.getElementById('studentsExcelFileTop');
         const normalInput=document.getElementById('studentsExcelFile');
         const file=(source==='top' && topInput && topInput.files[0]) ? topInput.files[0] : (normalInput && normalInput.files[0]);
         const resultEl=(source==='top' && document.getElementById('importStudentsResultTop')) ? document.getElementById('importStudentsResultTop') : document.getElementById('importStudentsResult');
-        if(!file){alert('Выберите Excel-файл');return;}
-        if(typeof XLSX==='undefined'){alert('Библиотека Excel не загрузилась.');return;}
+        if(!file){ alert('Выберите Excel-файл'); return; }
+        if(typeof XLSX==='undefined'){ alert('Библиотека Excel не загрузилась. Обновите страницу.'); return; }
+
         try{
-            resultEl.textContent='Читаем Excel-файл...';
+            resultEl.textContent='⏳ Читаем Excel-файл...';
             const buffer=await file.arrayBuffer();
             const wb=XLSX.read(buffer,{type:'array'});
+            if(!wb.SheetNames.length) throw new Error('В файле нет листов');
             const ws=wb.Sheets[wb.SheetNames[0]];
-            const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
-            const students=rows.map((r,i)=>{
-                const name=r['ФИО']??r['Фио']??r['фио']??r['Ученик']??r['Ученик ФИО']??'';
-                const cls=r['Класс']??r['класс']??r['Class']??'';
-                return {name:String(name).trim(),class:String(cls).trim(),row:i+2};
-            }).filter(x=>x.name&&x.class);
-            if(!students.length){alert('Не найдены строки с ФИО и классом. Используйте пример Excel.');return;}
-            resultEl.textContent=`Найдено учеников: ${students.length}. Отправляем на сервер...`;
+            const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,header:1});
+            if(rows.length<2) throw new Error('В Excel нет строк с учениками');
+
+            const headers=rows[0].map(normalizeExcelHeader);
+            const nameIndex=headers.findIndex(h=>['фио','фиоученика','ученик','ученикфио','fullname','name'].includes(h));
+            const classIndex=headers.findIndex(h=>['класс','классученика','class','group'].includes(h));
+            if(nameIndex<0 || classIndex<0){
+                throw new Error('Не найдены столбцы «ФИО» и «Класс». Используйте кнопку «Скачать пример Excel».');
+            }
+
+            const students=[];
+            const seen=new Set();
+            for(let i=1;i<rows.length;i++){
+                const row=rows[i]||[];
+                const name=String(row[nameIndex]??'').trim();
+                const cls=String(row[classIndex]??'').trim();
+                if(!name && !cls) continue;
+                if(!name || !cls) continue;
+                const key=name.toLocaleLowerCase('ru')+'|'+cls.toLocaleLowerCase('ru');
+                if(seen.has(key)) continue;
+                seen.add(key);
+                students.push({name,class:cls,row:i+1});
+            }
+            if(!students.length) throw new Error('Не найдено ни одного ученика с заполненными ФИО и классом.');
+
+            resultEl.textContent=`⏳ Найдено ${students.length} учеников. Загружаем в Google Таблицу...`;
             const result=await callApi('importStudents',{students:JSON.stringify(students)});
-            if(!result.success){alert(result.error||'Ошибка импорта');resultEl.textContent='Ошибка импорта';return;}
+            if(!result || !result.success){
+                throw new Error((result&&result.error)||'Сервер не принял импорт. Проверьте публикацию новой версии script.gs.');
+            }
             await loadData();
-            resultEl.textContent=`Импорт завершён: добавлено ${result.added||0}, пропущено дублей ${result.skipped||0}, ошибок строк ${result.invalid||0}.`;
-            document.getElementById('studentsExcelFile').value='';
-        }catch(err){console.error(err);resultEl.textContent='Ошибка чтения Excel-файла';alert('Не удалось прочитать Excel: '+err.message);}
+            resultEl.textContent=`✅ Готово: добавлено ${result.added||0}, дублей пропущено ${result.skipped||0}, пустых строк ${result.invalid||0}.`;
+            if(topInput) topInput.value='';
+            if(normalInput) normalInput.value='';
+        }catch(err){
+            console.error('Импорт учеников:',err);
+            resultEl.textContent='❌ '+err.message;
+            alert('Импорт учеников не выполнен.\n\n'+err.message);
+        }
     }
     function downloadStudentsTemplate(){
         if(typeof XLSX==='undefined'){alert('Библиотека Excel не загрузилась.');return;}
