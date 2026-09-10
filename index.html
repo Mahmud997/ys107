@@ -1009,7 +1009,7 @@
 <script>
     // ======================== CONFIGURATION ========================
     // Укажи URL опубликованного Google Apps Script Web App.
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx2feCw_ap-pXS8ONlFyZvGw25LYWbJrV02jmArkeEsYtTsMOx79adivOFeahbQaRcj/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLjSgq3ugXkVTs-4QWBeEtaH7yREDTQ-xQx9CvCot7MeO8nrD56N9ZBWLqY5V27oYx/exec';
 
     // ======================== STATE ========================
     let currentUser = null;
@@ -1138,9 +1138,16 @@
         return ['zavuch','завуч','admin','administrator','администратор'].includes(r);
     }
     function applyRolePermissions(){
-        const isZ=isZavuch();
-        document.querySelectorAll('.admin-only').forEach(el=>el.style.display=isZavuch?'':'none');
-        document.getElementById('adminTab').style.display=isZavuch?'inline-block':'none';
+        const isZ = isZavuch();
+        // Важно: проверяем именно результат isZavuch(), а не саму функцию.
+        // Раньше здесь использовалось `isZavuch ? '' : 'none'`, из-за чего
+        // административные элементы отображались у всех ролей, хотя сервер
+        // правильно запрещал импорт для учителя.
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.style.display = isZ ? '' : 'none';
+        });
+        const adminTab = document.getElementById('adminTab');
+        if (adminTab) adminTab.style.display = isZ ? 'inline-block' : 'none';
     }
 
     // ======================== RENDER ========================
@@ -1314,7 +1321,15 @@
             resultEl.textContent=`⏳ Найдено ${students.length} учеников. Загружаем в Google Таблицу...`;
             const result=await callApi('importStudents',{students:JSON.stringify(students)});
             if(!result || !result.success){
-                throw new Error((result&&result.error)||'Сервер не принял импорт. Проверьте публикацию новой версии script.gs.');
+                const serverError = (result && result.error) || 'Сервер не принял импорт.';
+                if (result && /недостаточно прав|завуч/i.test(serverError)) {
+                    throw new Error('Импорт доступен только роли «Завуч». Войдите под пользователем с role = zavuch в листе users.');
+                }
+                if (result && result.auth === false) {
+                    handleAuthExpired();
+                    throw new Error('Сессия истекла. Войдите снова и повторите импорт.');
+                }
+                throw new Error(serverError + ' Проверьте, что опубликована актуальная версия script.gs.');
             }
             await loadData();
             resultEl.textContent=`✅ Готово: добавлено ${result.added||0}, дублей пропущено ${result.skipped||0}, пустых строк ${result.invalid||0}.`;
