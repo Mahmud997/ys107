@@ -3,1361 +3,301 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>School Attendance Pro — учёт посещаемости</title>
-    <meta name="description" content="Онлайн-система учёта посещаемости школы с Google Таблицами">
+    <title>Учёт посещаемости — Школа 107</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --primary: #4F6F8F;
-            --primary-light: #7B9BB5;
-            --primary-dark: #3A5A7A;
-            --primary-bg: #F0F5FA;
-            --primary-gradient: linear-gradient(135deg, #E8F0F8 0%, #D5E4F0 100%);
-            --white: #FFFFFF;
-            --gray-50: #F9FAFB;
-            --gray-100: #F0F2F5;
-            --gray-200: #E4E7EC;
-            --gray-300: #CDD2D9;
-            --gray-400: #9CA3AF;
-            --gray-500: #6B7280;
-            --gray-600: #4B5563;
-            --gray-700: #374151;
-            --gray-800: #1F2937;
-            --gray-900: #111827;
-            --shadow-sm: 0 1px 2px rgba(79, 111, 143, 0.05);
-            --shadow: 0 4px 20px rgba(79, 111, 143, 0.08);
-            --shadow-lg: 0 8px 40px rgba(79, 111, 143, 0.12);
-            --shadow-xl: 0 12px 60px rgba(79, 111, 143, 0.15);
-            --radius: 16px;
-            --radius-sm: 10px;
-            --radius-lg: 24px;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--primary-bg);
-            color: var(--gray-800);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            background-image: radial-gradient(ellipse at 20% 50%, rgba(79, 111, 143, 0.03) 0%, transparent 60%),
-                              radial-gradient(ellipse at 80% 20%, rgba(79, 111, 143, 0.04) 0%, transparent 50%);
-        }
-
-        .app-container {
-            width: 100%;
-            max-width: 1280px;
-            background: var(--white);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-xl);
-            padding: 32px;
-            position: relative;
-            overflow: hidden;
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-        }
-
-        .app-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: var(--primary-gradient);
-            opacity: 0.6;
-        }
-
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-bottom: 24px;
-            border-bottom: 1px solid var(--gray-100);
-            flex-wrap: wrap;
-            gap: 16px;
-            position: relative;
-        }
-
-        .logo-section {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-
-        .logo-icon {
-            width: 44px;
-            height: 44px;
-            background: var(--primary-gradient);
-            border-radius: var(--radius-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--primary);
-            font-weight: 700;
-            font-size: 20px;
-            letter-spacing: -0.5px;
-            box-shadow: 0 2px 8px rgba(79, 111, 143, 0.15);
-        }
-
-        .logo-text {
-            font-size: 22px;
-            font-weight: 700;
-            color: var(--gray-900);
-            letter-spacing: -0.5px;
-        }
-
-        .logo-text span {
-            color: var(--primary-light);
-            font-weight: 400;
-        }
-
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .connection-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 14px;
-            background: var(--gray-50);
-            border-radius: 100px;
-            font-size: 13px;
-            color: var(--gray-500);
-            border: 1px solid var(--gray-100);
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--gray-300);
-            transition: var(--transition);
-        }
-
-        .status-dot.online {
-            background: #34A853;
-            box-shadow: 0 0 8px rgba(52, 168, 83, 0.3);
-        }
-
-        .status-dot.offline {
-            background: #EA4335;
-            box-shadow: 0 0 8px rgba(234, 67, 53, 0.3);
-        }
-
-        .status-dot.syncing {
-            background: #FBBC04;
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.8); }
-        }
-
-        .user-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 16px 6px 12px;
-            border-radius: 100px;
-            font-size: 14px;
-            font-weight: 500;
-            background: var(--gray-50);
-            border: 1px solid var(--gray-100);
-            color: var(--gray-700);
-        }
-
-        .user-badge .role {
-            padding: 2px 10px;
-            border-radius: 100px;
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 0.3px;
-            text-transform: uppercase;
-        }
-
-        .role-zavuch {
-            background: rgba(79, 111, 143, 0.12);
-            color: var(--primary);
-        }
-
-        .role-teacher {
-            background: rgba(52, 168, 83, 0.12);
-            color: #2D7D46;
-        }
-
-        .session-id {
-            font-size: 11px;
-            color: var(--gray-400);
-            background: var(--gray-100);
-            padding: 2px 8px;
-            border-radius: 100px;
-            font-weight: 400;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 8px 18px;
-            border: none;
-            border-radius: 100px;
-            font-family: inherit;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: var(--transition);
-            text-decoration: none;
-            background: var(--gray-100);
-            color: var(--gray-700);
-        }
-
-        .btn:hover {
-            background: var(--gray-200);
-            transform: translateY(-1px);
-        }
-
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 2px 8px rgba(79, 111, 143, 0.2);
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-dark);
-            box-shadow: 0 4px 16px rgba(79, 111, 143, 0.3);
-            transform: translateY(-2px);
-        }
-
-        .btn-outline {
-            background: transparent;
-            border: 1px solid var(--gray-200);
-            color: var(--gray-600);
-        }
-
-        .btn-outline:hover {
-            background: var(--gray-50);
-            border-color: var(--gray-300);
-        }
-
-        .btn-danger {
-            background: #FEE2E2;
-            color: #DC2626;
-        }
-
-        .btn-danger:hover {
-            background: #FECACA;
-        }
-
-        .btn-sm {
-            padding: 6px 14px;
-            font-size: 13px;
-        }
-
-        .hidden {
-            display: none !important;
-        }
-
-        /* Login Screen */
-        .login-screen {
-            max-width: 420px;
-            margin: 40px auto 20px;
-            padding: 40px 36px;
-            background: var(--gray-50);
-            border-radius: var(--radius);
-            border: 1px solid var(--gray-100);
-        }
-
-        .login-screen h2 {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--gray-900);
-            text-align: center;
-            margin-bottom: 8px;
-            letter-spacing: -0.5px;
-        }
-
-        .login-screen .subtitle {
-            text-align: center;
-            color: var(--gray-500);
-            font-size: 15px;
-            margin-bottom: 28px;
-        }
-
-        .login-screen label {
-            display: block;
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--gray-700);
-            margin-bottom: 4px;
-        }
-
-        .login-screen input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid var(--gray-200);
-            border-radius: var(--radius-sm);
-            font-family: inherit;
-            font-size: 15px;
-            transition: var(--transition);
-            background: white;
-            color: var(--gray-800);
-            margin-bottom: 16px;
-        }
-
-        .login-screen input:focus {
-            outline: none;
-            border-color: var(--primary-light);
-            box-shadow: 0 0 0 3px rgba(79, 111, 143, 0.1);
-        }
-
-        .login-screen .btn {
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-        }
-
-        .login-error {
-            color: #DC2626;
-            font-size: 14px;
-            text-align: center;
-            margin-top: 12px;
-            min-height: 24px;
-        }
-
-        .login-hint {
-            margin-top: 24px;
-            padding-top: 20px;
-            border-top: 1px solid var(--gray-200);
-            font-size: 13px;
-            color: var(--gray-400);
-            text-align: center;
-            line-height: 1.8;
-        }
-
-        .login-hint code {
-            background: var(--gray-100);
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            color: var(--gray-600);
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 12px;
-            padding: 20px 0 24px;
-        }
-
-        .stat-card {
-            background: var(--gray-50);
-            border-radius: var(--radius-sm);
-            padding: 16px 18px;
-            text-align: center;
-            border: 1px solid var(--gray-100);
-            transition: var(--transition);
-        }
-
-        .stat-card:hover {
-            border-color: var(--primary-light);
-            background: var(--white);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .stat-card .value {
-            display: block;
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--gray-900);
-            letter-spacing: -0.5px;
-            line-height: 1.2;
-        }
-
-        .stat-card .label {
-            display: block;
-            font-size: 13px;
-            color: var(--gray-500);
-            margin-top: 4px;
-            font-weight: 400;
-        }
-
-        /* Tabs */
-        .tabs {
-            display: flex;
-            gap: 4px;
-            border-bottom: 1px solid var(--gray-100);
-            padding-bottom: 0;
-            margin-bottom: 24px;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .tab-btn {
-            padding: 10px 20px;
-            border: none;
-            background: transparent;
-            font-family: inherit;
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--gray-500);
-            cursor: pointer;
-            transition: var(--transition);
-            border-bottom: 2px solid transparent;
-            white-space: nowrap;
-            border-radius: 0;
-        }
-
-        .tab-btn:hover {
-            color: var(--gray-700);
-            background: var(--gray-50);
-        }
-
-        .tab-btn.active {
-            color: var(--primary);
-            border-bottom-color: var(--primary);
-            background: transparent;
-        }
-
-        .tab-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-
-        .tab-btn.admin-only {
-            display: none;
-        }
-
-        /* Sections */
-        .section {
-            display: none;
-            animation: fadeIn 0.25s ease;
-        }
-
-        .section.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .section-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--gray-900);
-            margin-bottom: 18px;
-            letter-spacing: -0.3px;
-        }
-
-        /* Cards */
-        .card-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        @media (max-width: 768px) {
-            .card-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .card {
-            background: var(--gray-50);
-            border-radius: var(--radius-sm);
-            padding: 20px 22px;
-            border: 1px solid var(--gray-100);
-            transition: var(--transition);
-        }
-
-        .card:hover {
-            border-color: var(--primary-light);
-        }
-
-        .card-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--gray-800);
-            margin-bottom: 14px;
-        }
-
-        .form-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .form-row > * {
-            flex: 1 0 auto;
-        }
-
-        .form-row label {
-            flex: 0 0 auto;
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--gray-700);
-        }
-
-        select, input, textarea {
-            padding: 10px 14px;
-            border: 1px solid var(--gray-200);
-            border-radius: var(--radius-sm);
-            font-family: inherit;
-            font-size: 14px;
-            background: white;
-            color: var(--gray-800);
-            transition: var(--transition);
-            width: 100%;
-        }
-
-        select:focus, input:focus, textarea:focus {
-            outline: none;
-            border-color: var(--primary-light);
-            box-shadow: 0 0 0 3px rgba(79, 111, 143, 0.08);
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 80px;
-        }
-
-        select {
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-            padding-right: 36px;
-        }
-
-        /* Tables */
-        .table-wrapper {
-            overflow-x: auto;
-            margin: 12px 0;
-            border-radius: var(--radius-sm);
-            border: 1px solid var(--gray-100);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-        }
-
-        th {
-            background: var(--gray-50);
-            padding: 12px 14px;
-            text-align: left;
-            font-weight: 600;
-            color: var(--gray-700);
-            font-size: 13px;
-            border-bottom: 1px solid var(--gray-200);
-            white-space: nowrap;
-        }
-
-        td {
-            padding: 11px 14px;
-            border-bottom: 1px solid var(--gray-100);
-            color: var(--gray-700);
-        }
-
-        tr:last-child td {
-            border-bottom: none;
-        }
-
-        tr:hover td {
-            background: var(--gray-50);
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 3px 12px;
-            border-radius: 100px;
-            font-size: 12px;
-            font-weight: 500;
-            letter-spacing: 0.2px;
-        }
-
-        .status-present {
-            background: #E6F4EA;
-            color: #1E7E34;
-        }
-
-        .status-late {
-            background: #FEF7E0;
-            color: #B45309;
-        }
-
-        .status-absent {
-            background: #FEE2E2;
-            color: #B91C1C;
-        }
-
-        .status-excused {
-            background: #E0F2FE;
-            color: #0369A1;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 32px 20px;
-            color: var(--gray-400);
-            font-size: 14px;
-        }
-
-        .text-muted {
-            color: var(--gray-500);
-            font-size: 14px;
-            margin-top: 6px;
-        }
-
-        .admin-only {
-            display: none;
-        }
-
-        .danger-zone {
-            border-color: #FECACA !important;
-            background: #FEF2F2 !important;
-        }
-
-        .danger-zone .card-title {
-            color: #DC2626;
-        }
-
-        /* Online users indicator */
-        .online-users {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
-            color: var(--gray-500);
-            padding: 4px 12px;
-            background: var(--gray-50);
-            border-radius: 100px;
-            border: 1px solid var(--gray-100);
-        }
-
-        .online-users .count {
-            font-weight: 600;
-            color: var(--gray-700);
-        }
-
-        /* Responsive */
-        @media (max-width: 640px) {
-            .app-container {
-                padding: 20px 16px;
-                border-radius: var(--radius);
-            }
-
-            .header {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 12px;
-            }
-
-            .header-actions {
-                justify-content: space-between;
-            }
-
-            .logo-text {
-                font-size: 18px;
-            }
-
-            .login-screen {
-                padding: 28px 20px;
-                margin: 20px 0;
-            }
-
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-                padding: 12px 0 16px;
-            }
-
-            .stat-card .value {
-                font-size: 22px;
-            }
-
-            .card-grid {
-                grid-template-columns: 1fr;
-                gap: 14px;
-            }
-
-            .tabs {
-                gap: 2px;
-            }
-
-            .tab-btn {
-                padding: 8px 14px;
-                font-size: 13px;
-            }
-
-            .form-row {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .form-row > * {
-                flex: 1 1 auto;
-            }
-
-            .btn {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .user-badge {
-                font-size: 13px;
-                padding: 4px 12px 4px 10px;
-            }
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--gray-50);
-            border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--gray-300);
-            border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--gray-400);
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #F0F5FA; color: #1F2937; padding: 20px; }
+        .app-container { max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #E5E7EB; padding-bottom: 16px; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+        .logo { font-size: 20px; font-weight: 700; color: #3A5A7A; }
+        .header-btns { display: flex; gap: 10px; align-items: center; }
+        .btn { padding: 9px 16px; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: 0.2s; }
+        .btn-primary { background: #4F6F8F; color: #fff; }
+        .btn-primary:hover { background: #3A5A7A; }
+        .btn-success { background: #10B981; color: #fff; }
+        .btn-success:hover { background: #059669; }
+        .btn-outline { background: #F3F4F6; color: #374151; border: 1px solid #D1D5DB; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .stat-card { background: #F9FAFB; border: 1px solid #E5E7EB; padding: 16px; border-radius: 12px; text-align: center; }
+        .stat-card .val { font-size: 26px; font-weight: 700; color: #111827; }
+        .stat-card .lbl { font-size: 13px; color: #6B7280; margin-top: 4px; }
+        .tabs { display: flex; gap: 8px; border-bottom: 2px solid #E5E7EB; margin-bottom: 20px; }
+        .tab { padding: 10px 18px; border: none; background: none; font-size: 14px; font-weight: 600; color: #6B7280; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+        .tab.active { color: #4F6F8F; border-bottom-color: #4F6F8F; }
+        .section { display: none; }
+        .section.active { display: block; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+        .card { background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px; }
+        .card h3 { margin-bottom: 14px; font-size: 16px; }
+        select, input { width: 100%; padding: 10px; border: 1px solid #D1D5DB; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+        .table-wrap { overflow-x: auto; max-height: 450px; border: 1px solid #E5E7EB; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; background: #fff; }
+        th, td { padding: 10px 14px; border-bottom: 1px solid #E5E7EB; text-align: left; }
+        th { background: #F3F4F6; font-weight: 600; position: sticky; top: 0; }
     </style>
 </head>
 <body>
 
-<div class="app-container" id="app">
-    <!-- Header -->
-    <header class="header">
-        <div class="logo-section">
-            <div class="logo-icon">S</div>
-            <div class="logo-text">School<span>Attendance</span></div>
-        </div>
-        <div class="header-actions">
-            <div class="connection-status">
-                <span class="status-dot offline" id="statusDot"></span>
-                <span id="statusText">Соединение</span>
-            </div>
-            <div id="onlineUsers" class="online-users hidden">
-                <span>👤</span>
-                <span class="count" id="usersCount">0</span>
-                <span>онлайн</span>
-            </div>
-            <div id="userBadge" class="user-badge hidden">
-                <span id="userName">Пользователь</span>
-                <span class="role" id="userRole">Роль</span>
-                <span class="session-id" id="sessionId">#0000</span>
-            </div>
-            <button id="logoutBtn" class="btn btn-outline btn-sm hidden" onclick="logout()">Выход</button>
-        </div>
-    </header>
-
-    <!-- Login Screen -->
-    <div id="loginScreen" class="login-screen">
-        <h2>Вход в систему</h2>
-        <p class="subtitle">Введите учётные данные для доступа</p>
-        <label for="loginInput">Логин</label>
-        <input type="text" id="loginInput" placeholder="Введите логин" value="zavuch">
-        <label for="passwordInput">Пароль</label>
-        <input type="password" id="passwordInput" placeholder="Введите пароль" value="123">
-        <button class="btn btn-primary" onclick="login()">Войти</button>
-        <div id="loginError" class="login-error"></div>
-        <div class="login-hint">
-            <strong>Завуч:</strong> <code>zavuch</code> / <code>123</code><br>
-            <strong>Дежурный (общий):</strong> <code>teacher</code> / <code>123</code> — <em>несколько человек могут войти одновременно</em>
+<div class="app-container">
+    <div class="header">
+        <div class="logo">🏫 Учёт посещаемости №107</div>
+        <div class="header-btns">
+            <label class="btn btn-success">
+                📁 Загрузить новый Excel
+                <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display:none;" onchange="importExcelFile(event)">
+            </label>
+            <button class="btn btn-outline" onclick="resetToBuiltin()">Сбросить к исходным (1718)</button>
         </div>
     </div>
 
-    <!-- Main App -->
-    <div id="mainApp" class="hidden">
-        <!-- Stats -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <span class="value" id="totalStudents">0</span>
-                <span class="label">Учеников</span>
-            </div>
-            <div class="stat-card">
-                <span class="value" id="todayRecords">0</span>
-                <span class="label">Записей сегодня</span>
-            </div>
-            <div class="stat-card">
-                <span class="value" id="todayLate">0</span>
-                <span class="label">Опозданий</span>
-            </div>
-            <div class="stat-card">
-                <span class="value" id="todayAbsent">0</span>
-                <span class="label">Отсутствий</span>
-            </div>
-            <div class="stat-card">
-                <span class="value" id="totalClasses">0</span>
-                <span class="label">Классов</span>
-            </div>
-        </div>
+    <div class="stats-grid">
+        <div class="stat-card"><div class="val" id="statTotal">1718</div><div class="lbl">Всего учеников</div></div>
+        <div class="stat-card"><div class="val" id="statClasses">0</div><div class="lbl">Классов</div></div>
+        <div class="stat-card"><div class="val" id="statToday">0</div><div class="lbl">Отметок сегодня</div></div>
+    </div>
 
-        <!-- Tabs -->
-        <div class="tabs" id="tabsContainer">
-            <button class="tab-btn active" data-tab="tab-mark">Отметка</button>
-            <button class="tab-btn" data-tab="tab-today">Сегодня</button>
-            <button class="tab-btn" data-tab="tab-journal">Журнал</button>
-            <button class="tab-btn" data-tab="tab-students">Ученики</button>
-            <button class="tab-btn admin-only" data-tab="tab-admin" id="adminTab">Администрирование</button>
-        </div>
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('tab-mark', this)">Отметка</button>
+        <button class="tab" onclick="switchTab('tab-students', this)">Список учеников</button>
+        <button class="tab" onclick="switchTab('tab-journal', this)">Журнал</button>
+    </div>
 
-        <!-- Tab: Mark -->
-        <div id="tab-mark" class="section active">
-            <h3 class="section-title">Отметка посещаемости</h3>
-            <div class="card-grid">
-                <div class="card">
-                    <div class="card-title">Отметка по классу</div>
-                    <div class="form-row" style="margin-bottom:10px;">
-                        <select id="markClassSelect" onchange="renderMarkStudents()" style="flex:1;">
-                            <option value="">— Сначала выберите класс —</option>
-                        </select>
-                        <input type="search" id="markStudentSearch" placeholder="Поиск по фамилии или ФИО" oninput="renderMarkStudents()" style="flex:1.5;">
-                    </div>
-                    <select id="studentSelect" style="width:100%; margin-bottom:14px;" disabled></select>
-                    <div class="text-muted" style="margin:-5px 0 12px;">Выберите класс, затем ученика из списка. Можно искать по фамилии.</div>
-                    <div class="form-row" style="margin-top:4px;">
-                        <select id="statusSelect" style="flex:1.5;">
-                            <option value="present">Присутствовал</option>
-                            <option value="late">Опоздал</option>
-                            <option value="absent">Отсутствовал</option>
-                            <option value="excused">Уважительная причина</option>
-                        </select>
-                        <input type="text" id="noteInput" placeholder="Примечание" style="flex:2;">
-                    </div>
-                    <button class="btn btn-primary" onclick="markAttendance()" style="width:100%; margin-top:12px;">Сохранить отметку</button>
-                    <div class="text-muted" style="margin-top:10px;">Сегодня: <span id="todayDate"></span></div>
-                </div>
-                <div class="card">
-                    <div class="card-title">Записи за сегодня</div>
-                    <div class="table-wrapper" style="max-height:300px; overflow-y:auto;">
-                        <table>
-                            <thead><tr><th>Время</th><th>ФИО</th><th>Класс</th><th>Статус</th></tr></thead>
-                            <tbody id="todayTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab: Today -->
-        <div id="tab-today" class="section">
-            <h3 class="section-title">Статистика за сегодня</h3>
-            <div class="stats-grid" style="padding-top:0; padding-bottom:12px;">
-                <div class="stat-card">
-                    <span class="value" id="todayTotal">0</span>
-                    <span class="label">Всего записей</span>
-                </div>
-                <div class="stat-card">
-                    <span class="value" id="todayLate2">0</span>
-                    <span class="label">Опозданий</span>
-                </div>
-                <div class="stat-card">
-                    <span class="value" id="todayAbsent2">0</span>
-                    <span class="label">Отсутствий</span>
-                </div>
-            </div>
-            <div class="card-grid" style="margin-bottom:18px;">
-                <div class="card">
-                    <div class="card-title">По классам</div>
-                    <div id="classBreakdown"></div>
-                </div>
-                <div class="card">
-                    <div class="card-title">По статусам</div>
-                    <div id="statusBreakdown"></div>
-                </div>
+    <!-- Вкладка отметки -->
+    <div id="tab-mark" class="section active">
+        <div class="grid-2">
+            <div class="card">
+                <h3>Форма отметки</h3>
+                <select id="classFilter" onchange="onClassChange()">
+                    <option value="">— Выберите класс —</option>
+                </select>
+                <input type="text" id="nameSearch" placeholder="Поиск по фамилии..." oninput="onSearchChange()">
+                <select id="studentSelect">
+                    <option value="">— Сначала выберите класс —</option>
+                </select>
+                <select id="statusSelect">
+                    <option value="Присутствует">Присутствует</option>
+                    <option value="Опоздал">Опоздал</option>
+                    <option value="Отсутствует">Отсутствует</option>
+                    <option value="Причина">Уважительная причина</option>
+                </select>
+                <input type="text" id="noteInput" placeholder="Примечание (необязательно)">
+                <button class="btn btn-primary" style="width:100%" onclick="saveRecord()">Сохранить отметку</button>
             </div>
             <div class="card">
-                <div class="card-title">Последние записи</div>
-                <div class="table-wrapper">
+                <h3>Записи за сегодня</h3>
+                <div class="table-wrap">
                     <table>
                         <thead><tr><th>Время</th><th>ФИО</th><th>Класс</th><th>Статус</th></tr></thead>
-                        <tbody id="todayFullTable"></tbody>
+                        <tbody id="todayList"></tbody>
                     </table>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Tab: Journal -->
-        <div id="tab-journal" class="section">
-            <h3 class="section-title">Полный журнал</h3>
-            <div class="card" style="margin-bottom:16px;">
-                <div class="form-row">
-                    <label for="filterClass">Класс</label>
-                    <select id="filterClass" onchange="renderJournal()" style="flex:1;">
-                        <option value="">Все классы</option>
-                    </select>
-                    <label for="filterName">ФИО</label>
-                    <input type="text" id="filterName" placeholder="Поиск..." oninput="renderJournal()" style="flex:2;">
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
-                    <button class="btn btn-primary" onclick="exportXLSX()">Экспорт Excel</button>
-                    <button class="btn" onclick="exportCSV()">Экспорт CSV</button>
-                    <button class="btn" onclick="window.print()">Печать</button>
-                </div>
-            </div>
-            <div class="table-wrapper" style="max-height:500px; overflow-y:auto;">
-                <table>
-                    <thead><tr><th>Дата</th><th>ФИО</th><th>Класс</th><th>Статус</th><th>Примечание</th><th>Отметил</th></tr></thead>
-                    <tbody id="journalTableBody"></tbody>
-                </table>
-            </div>
+    <!-- Вкладка списка учеников -->
+    <div id="tab-students" class="section">
+        <div style="display:flex; gap:10px; margin-bottom:12px;">
+            <input type="text" id="studentListSearch" placeholder="Быстрый поиск ученика или класса..." oninput="renderStudentsTable()" style="margin:0;">
         </div>
-
-        <!-- Tab: Students -->
-        <div id="tab-students" class="section">
-            <h3 class="section-title">Список учеников</h3>
-            <div class="card admin-only" style="margin-bottom:16px;">
-                <div class="card-title">Добавление ученика вручную</div>
-                <div class="form-row">
-                    <input type="text" id="studentName" placeholder="ФИО" style="flex:2;">
-                    <input type="text" id="studentClass" placeholder="Класс (например, 9Б)" style="flex:1;">
-                    <button class="btn btn-primary" onclick="addStudent()">Добавить</button>
-                </div>
-            </div>
-            <div class="table-wrapper" style="max-height:350px; overflow-y:auto; margin-bottom:20px;">
-                <table>
-                    <thead><tr><th>ФИО</th><th>Класс</th><th>Действие</th></tr></thead>
-                    <tbody id="studentsTableBody"></tbody>
-                </table>
-            </div>
-            <div class="card">
-                <div class="card-title">Статистика ученика</div>
-                <div class="form-row" style="margin-bottom:12px;">
-                    <select id="studentStatSelect" onchange="renderStudentStats()" style="flex:1;"></select>
-                </div>
-                <div id="studentStatsDisplay">
-                    <p style="font-size:14px; color:var(--gray-600);">
-                        Всего: <span id="statTotal" style="font-weight:600;color:var(--gray-800);">0</span> &nbsp;·&nbsp;
-                        Опозданий: <span id="statLate2" style="font-weight:600;color:var(--gray-800);">0</span> &nbsp;·&nbsp;
-                        Отсутствий: <span id="statAbsent2" style="font-weight:600;color:var(--gray-800);">0</span> &nbsp;·&nbsp;
-                        Нарушений: <span id="statViolation" style="font-weight:600;color:var(--gray-800);">—</span>
-                    </p>
-                    <div class="table-wrapper" style="margin-top:10px; max-height:200px; overflow-y:auto;">
-                        <table>
-                            <thead><tr><th>Дата</th><th>Статус</th><th>Примечание</th></tr></thead>
-                            <tbody id="statDetailTable"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>№</th><th>Ф.И.О.</th><th>Класс</th></tr></thead>
+                <tbody id="studentsTable"></tbody>
+            </table>
         </div>
+    </div>
 
-        <!-- Tab: Admin -->
-        <div id="tab-admin" class="section admin-only">
-            <h3 class="section-title">Администрирование</h3>
-            <div class="card danger-zone">
-                <div class="card-title">Управление данными</div>
-                <p style="font-size:14px; color:var(--gray-600); margin-bottom:12px;">
-                    Это действие удаляет все записи посещаемости. Ученики останутся в списке.
-                </p>
-                <button class="btn btn-danger" onclick="resetAll()">Сбросить все записи</button>
-            </div>
+    <!-- Вкладка журнала -->
+    <div id="tab-journal" class="section">
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Дата</th><th>Время</th><th>ФИО</th><th>Класс</th><th>Статус</th><th>Примечание</th></tr></thead>
+                <tbody id="journalTable"></tbody>
+            </table>
         </div>
     </div>
 </div>
 
 <script>
-    // ======================== CONFIGURATION ========================
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyfHwzxQoq6ipPSMaJGYEH2EaBCABHhsBnVgy78UXOKuMmkbV5iXYBpJfDB4JDvM8fn/exec';
+    // Полноценный встроенный файл с автозагрузкой ваших 1718 учеников
+    let BUILTIN_DATA = [];
+    let students = [];
+    let records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
 
-    // Встроенная база учеников (1718 записей)
-    const BUILTIN_STUDENTS = (function() {
-        const firstNames = ['АБДУЛЛАЗИЗХАН', 'АЛИХАН', 'АМИР', 'АРСЕН', 'АСАН', 'АЙАРУ', 'АЙЗЕРЕ', 'АМИНА', 'ДИАНА', 'ЖАСМИН', 'КАМРОН', 'МАДИ', 'МАДИНА', 'НУРАЛИ', 'РАМАЗАН', 'САНЖАР', 'ТОМИРИС'];
-        const lastNames = ['АБДУЛЛАЕВ', 'АХМЕТОВ', 'БАЙТУРСЫНОВ', 'ГАЙРАТОВ', 'ДАУЛЕТОВ', 'ЕАНОВ', 'ЖУМАБАЕВ', 'ИБРАГИМОВ', 'КАСЫМОВ', 'МАКАТАЕВ', 'НУРГАЛИЕВ', 'ОСПАНОВ', 'РУСТЕМОВ', 'САЙДАХМАТОВ', 'ТУРСУНОВ', 'УМАРОВ', 'ФУРКАТОВ'];
-        const middleNames = ['АБДУЛЛАЕВИЧ', 'АХМЕТОВИЧ', 'ГАЙРАТОВИЧ', 'ЖАСУРЖАНОВИЧ', 'ЗАХИДЖАНОВИЧ', 'ИБРАГИМОВИЧ', 'НУРГАЛИЕВИЧ', 'РУСТЕМОВИЧ', 'САЙДАХМАТОВИЧ', 'ФУРКАТОВИЧ', 'АБДУЛЛАЕВНА', 'АХМЕТОВНА', 'ЖАСУРЖАНОВНА', 'ЗАХИДЖАНОВНА', 'ИБРАГИМОВНА'];
-        const classes = ['9А', '9Б', '9В', '9Г', '10А', '10Б', '11А', '11Б'];
-        
-        const list = [
-            { id: 'STU-1', name: 'ГАЙРАТОВА ЖАСМИН ЖАСУРЖАНОВНА', class: '9Б' },
-            { id: 'STU-2', name: 'САЙДАХМАТОВ КАМРОН ЗАХИДЖАНОВИЧ', class: '9Б' },
-            { id: 'STU-3', name: 'ФУРКАТОВ АБДУЛЛАЗИЗХАН ФУРКАТОВИЧ', class: '9А' }
-        ];
-
-        for (let i = 4; i <= 1718; i++) {
-            const l = lastNames[i % lastNames.length];
-            const f = firstNames[i % firstNames.length];
-            const m = middleNames[i % middleNames.length];
-            const c = classes[i % classes.length];
-            list.push({
-                id: 'STU-' + i,
-                name: `${l} ${f} ${m}`,
-                class: c
-            });
-        }
-        return list;
-    })();
-
-    // ======================== STATE ========================
-    let currentUser = null;
-    let appData = { students: BUILTIN_STUDENTS, records: [] };
-    let today = new Date().toLocaleDateString('en-CA');
-    let syncInterval = null;
-    let sessionToken = sessionStorage.getItem('attendanceToken') || '';
-
-    // ======================== API ========================
-    async function callApi(action, params = {}) {
-        const payload = { action, ...params };
-        if (sessionToken && !payload.token) payload.token = sessionToken;
-        try {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(payload),
-                redirect: 'follow'
-            });
-            const data = await response.json();
-            if (data.auth === false) handleAuthExpired();
-            return data;
-        } catch (error) {
-            console.error('API error:', error);
-            setStatus('offline', 'Ошибка связи');
-            return { success:false, error:error.message };
-        }
-    }
-
-    function generateSessionId() {
-        return (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)).slice(0, 6).toUpperCase();
-    }
-
-    function handleAuthExpired() {
-        if (!currentUser) return;
-        currentUser = null;
-        sessionToken = '';
-        sessionStorage.removeItem('attendanceToken');
-        clearInterval(syncInterval);
-        document.getElementById('loginScreen').classList.remove('hidden');
-        document.getElementById('mainApp').classList.add('hidden');
-        document.getElementById('userBadge').classList.add('hidden');
-        document.getElementById('logoutBtn').classList.add('hidden');
-        setStatus('offline', 'Сессия истекла');
-        document.getElementById('loginError').textContent = 'Сессия истекла. Войдите снова.';
-    }
-
-    // ======================== AUTH ========================
-    async function login() {
-        const loginVal = document.getElementById('loginInput').value.trim();
-        const password = document.getElementById('passwordInput').value;
-        const errorEl = document.getElementById('loginError');
-        if (!loginVal || !password) { errorEl.textContent = 'Введите логин и пароль'; return; }
-        errorEl.textContent = 'Подключение...';
-        const result = await callApi('login', { login: loginVal, password });
-        if (!result.success) { errorEl.textContent = result.error || 'Неверный логин или пароль'; return; }
-        sessionToken = result.token;
-        sessionStorage.setItem('attendanceToken', sessionToken);
-        currentUser = { login: loginVal, role: result.role, name: result.name };
-        errorEl.textContent = '';
-        document.getElementById('loginScreen').classList.add('hidden');
-        document.getElementById('mainApp').classList.remove('hidden');
-        document.getElementById('sessionId').textContent = '#' + generateSessionId();
-        document.getElementById('userName').textContent = result.name || result.login;
-        const roleEl = document.getElementById('userRole');
-        roleEl.textContent = result.role === 'zavuch' ? 'Завуч' : 'Дежурный';
-        roleEl.className = `role ${result.role === 'zavuch' ? 'role-zavuch' : 'role-teacher'}`;
-        document.getElementById('userBadge').classList.remove('hidden');
-        document.getElementById('logoutBtn').classList.remove('hidden');
-        applyRolePermissions();
-        await loadData();
-        await refreshOnlineUsers();
-        startAutoSync();
-    }
-
-    async function logout() {
-        try { await callApi('logout'); } catch (_) {}
-        currentUser = null; sessionToken=''; sessionStorage.removeItem('attendanceToken'); clearInterval(syncInterval);
-        document.getElementById('loginScreen').classList.remove('hidden');
-        document.getElementById('mainApp').classList.add('hidden');
-        document.getElementById('userBadge').classList.add('hidden');
-        document.getElementById('logoutBtn').classList.add('hidden');
-        setStatus('offline', 'Отключено');
-    }
-
-    // ======================== STATUS ========================
-    function setStatus(state, text) {
-        const dot=document.getElementById('statusDot'), label=document.getElementById('statusText');
-        dot.className=`status-dot ${state}`; label.textContent=text;
-    }
-
-    // ======================== DATA ========================
-    async function loadData() {
-        setStatus('syncing','Синхронизация...');
-        const [students, records] = await Promise.all([callApi('getStudents'), callApi('getRecords')]);
-        if (Array.isArray(students) && students.length > 0) {
-            appData.students = students;
+    // При открытии сайта автоматически загружаем файл контингент_2.xlsx
+    window.onload = function() {
+        const saved = localStorage.getItem('loaded_students');
+        if (saved) {
+            students = JSON.parse(saved);
+            updateAll();
         } else {
-            appData.students = BUILTIN_STUDENTS;
+            // Если в браузере ничего нет, тянем файл из папки GitHub
+            fetch('контингент_2.xlsx')
+                .then(res => res.arrayBuffer())
+                .then(buffer => {
+                    const wb = XLSX.read(buffer, {type: 'array'});
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    const data = XLSX.utils.sheet_to_json(sheet);
+                    students = data.map((r, i) => ({
+                        id: 'STU-' + (r['№'] || (i + 1)),
+                        name: String(r['Ф.И.О.'] || r['ФИО'] || '').trim(),
+                        class: String(r['класс'] || r['Класс'] || '').trim()
+                    })).filter(s => s.name);
+                    BUILTIN_DATA = [...students];
+                    updateAll();
+                })
+                .catch(err => {
+                    console.log('Ждем ручной импорт или локальную загрузку');
+                    updateAll();
+                });
         }
-        if (Array.isArray(records)) appData.records = records;
-        setStatus('online','Онлайн'); 
-        renderAll();
-    }
+    };
 
-    function startAutoSync() {
-        clearInterval(syncInterval);
-        syncInterval=setInterval(async()=>{
-            if(!currentUser) return;
-            const hb=await callApi('heartbeat');
-            if(hb && hb.success) renderOnlineUsers(hb.online || []);
-            const records=await callApi('getRecords');
-            if(Array.isArray(records) && JSON.stringify(records)!==JSON.stringify(appData.records)){
-                appData.records=records;
-                renderAll();
+    function importExcelFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(firstSheet);
+
+                students = rows.map((r, i) => ({
+                    id: 'STU-' + (r['№'] || (i + 1)),
+                    name: String(r['Ф.И.О.'] || r['ФИО'] || r['Name'] || '').trim(),
+                    class: String(r['класс'] || r['Класс'] || r['Class'] || '').trim()
+                })).filter(s => s.name !== '');
+
+                localStorage.setItem('loaded_students', JSON.stringify(students));
+                alert(`Успешно импортировано ${students.length} учеников!`);
+                updateAll();
+            } catch (err) {
+                alert('Ошибка импорта Excel: ' + err.message);
             }
-        },5000);
+        };
+        reader.readAsArrayBuffer(file);
     }
 
-    async function refreshOnlineUsers(){ const r=await callApi('getOnlineUsers'); if(r.success) renderOnlineUsers(r.users||[]); }
-    function renderOnlineUsers(users){
-        const el=document.getElementById('onlineUsers');
-        const count=[...new Set(users.map(u=>u.login))].length;
-        if(count){el.classList.remove('hidden');document.getElementById('usersCount').textContent=count;}else el.classList.add('hidden');
+    function resetToBuiltin() {
+        localStorage.removeItem('loaded_students');
+        location.reload();
     }
 
-    // ======================== PERMISSIONS ========================
-    function isZavuch(){
-        if(!currentUser) return false;
-        const role=String(currentUser.role||'').trim().toLowerCase().replace(/ё/g,'е');
-        const loginVal=String(currentUser.login||'').trim().toLowerCase();
-        const normalized=role.replace(/[^a-zа-я0-9]+/gi,'');
-        return ['zavuch','завуч','admin','administrator','администратор'].includes(normalized) || loginVal==='zavuch';
-    }
-    function applyRolePermissions(){
-        const isZ = isZavuch();
-        document.querySelectorAll('.admin-only').forEach(el => {
-            el.style.display = isZ ? '' : 'none';
-        });
-        const adminTab = document.getElementById('adminTab');
-        if (adminTab) adminTab.style.display = isZ ? 'inline-block' : 'none';
+    function updateAll() {
+        document.getElementById('statTotal').textContent = students.length;
+        const classes = [...new Set(students.map(s => s.class))].filter(Boolean).sort();
+        document.getElementById('statClasses').textContent = classes.length;
+        
+        const todayStr = new Date().toLocaleDateString('ru-RU');
+        const todayRecs = records.filter(r => r.date === todayStr);
+        document.getElementById('statToday').textContent = todayRecs.length;
+
+        const classSelect = document.getElementById('classFilter');
+        const currentCls = classSelect.value;
+        classSelect.innerHTML = '<option value="">— Выберите класс —</option>' + 
+            classes.map(c => `<option value="${c}">${c}</option>`).join('');
+        classSelect.value = currentCls;
+
+        onClassChange();
+        renderStudentsTable();
+        renderJournal();
     }
 
-    // ======================== HELPER FUNCTIONS ========================
-    function escapeHtml(text) {
-        if (!text) return '';
-        return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    function onClassChange() {
+        const cls = document.getElementById('classFilter').value;
+        const q = document.getElementById('nameSearch').value.toLowerCase();
+        const sel = document.getElementById('studentSelect');
+
+        let filtered = students.filter(s => 
+            (!cls || s.class === cls) && 
+            (!q || s.name.toLowerCase().includes(q))
+        );
+
+        sel.innerHTML = filtered.length === 0 
+            ? '<option value="">Никого не найдено</option>'
+            : '<option value="">— Выберите ученика —</option>' + filtered.map(s => `<option value="${s.id}">${s.name} (${s.class})</option>`).join('');
     }
 
-    function getStudentName(id) {
-        const s = appData.students.find(x => x.id === id);
-        return s ? s.name : 'Неизвестно';
+    function onSearchChange() {
+        onClassChange();
     }
 
-    function getStudentClass(id) {
-        const s = appData.students.find(x => x.id === id);
-        return s ? s.class : '—';
+    function renderStudentsTable() {
+        const q = document.getElementById('studentListSearch').value.toLowerCase();
+        const tbody = document.getElementById('studentsTable');
+        const filtered = students.filter(s => !q || s.name.toLowerCase().includes(q) || s.class.toLowerCase().includes(q));
+        
+        tbody.innerHTML = filtered.map((s, idx) => `
+            <tr>
+                <td>${idx + 1}</td>
+                <td><strong>${s.name}</strong></td>
+                <td>${s.class}</td>
+            </tr>
+        `).join('');
     }
 
-    function getStatusLabel(status) {
-        switch(status) {
-            case 'present': return 'Присутствовал';
-            case 'late': return 'Опоздал';
-            case 'absent': return 'Отсутствовал';
-            case 'excused': return 'Уважительная';
-            default: return status;
-        }
+    function saveRecord() {
+        const id = document.getElementById('studentSelect').value;
+        const status = document.getElementById('statusSelect').value;
+        const note = document.getElementById('noteInput').value;
+
+        if (!id) return alert('Выберите ученика!');
+        const st = students.find(s => s.id === id);
+
+        const now = new Date();
+        const rec = {
+            date: now.toLocaleDateString('ru-RU'),
+            time: now.toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'}),
+            name: st.name,
+            class: st.class,
+            status: status,
+            note: note
+        };
+
+        records.unshift(rec);
+        localStorage.setItem('attendance_records', JSON.stringify(records));
+        document.getElementById('noteInput').value = '';
+        updateAll();
+        alert('Запись сохранена');
     }
 
-    function getStatusClass(status) {
-        switch(status) {
-            case 'present': return 'status-present';
-            case 'late': return 'status-late';
-            case 'absent': return 'status-absent';
-            case 'excused': return 'status-excused';
-            default: return '';
-        }
+    function renderJournal() {
+        const todayStr = new Date().toLocaleDateString('ru-RU');
+        const todayRecs = records.filter(r => r.date === todayStr);
+
+        document.getElementById('todayList').innerHTML = todayRecs.map(r => `
+            <tr>
+                <td>${r.time}</td>
+                <td>${r.name}</td>
+                <td>${r.class}</td>
+                <td><strong>${r.status}</strong></td>
+            </tr>
+        `).join('');
+
+        document.getElementById('journalTable').innerHTML = records.map(r => `
+            <tr>
+                <td>${r.date}</td>
+                <td>${r.time}</td>
+                <td>${r.name}</td>
+                <td>${r.class}</td>
+                <td>${r.status}</td>
+                <td>${r.note || '-'}</td>
+            </tr>
+        `).join('');
     }
 
-    // ======================== RENDER ========================
-    function renderAll(){
-        renderStudents(); renderStudentSelects(); renderTodayStats(); renderTodayTable(); renderTodayFull(); renderJournal(); renderStudentStats(); renderClassFilter(); renderStatsSummary();
-        document.getElementById('todayDate').textContent=new Date().toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
-    }
-
-    function renderStatsSummary(){
-        const total=appData.students.length, classes=new Set(appData.students.map(s=>s.class));
-        const todayRecs=appData.records.filter(r=>r.date===today);
-        const late=todayRecs.filter(r=>r.status==='late').length, absent=todayRecs.filter(r=>r.status==='absent').length;
-        document.getElementById('todayTotal').textContent=todayRecs.length;
-        document.getElementById('todayLate2').textContent=late;
-        document.getElementById('todayAbsent2').textContent=absent;
-        document.getElementById('todayRecords').textContent=todayRecs.length;
-        document.getElementById('todayLate').textContent=late;
-        document.getElementById('todayAbsent').textContent=absent;
-        document.getElementById('totalStudents').textContent=total;
-        document.getElementById('totalClasses').textContent=classes.size;
-        const classMap={}; todayRecs.forEach(r=>{const c=getStudentClass(r.studentId);classMap[c]=(classMap[c]||0)+1;});
-        document.getElementById('classBreakdown').innerHTML=Object.entries(classMap).map(([c,n])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gray-100)"><span>${escapeHtml(c)}</span><b>${n}</b></div>`).join('')||'<div class="empty-state">Нет записей</div>';
-        const statusMap={}; todayRecs.forEach(r=>statusMap[r.status]=(statusMap[r.status]||0)+1);
-        document.getElementById('statusBreakdown').innerHTML=Object.entries(statusMap).map(([st,n])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gray-100)"><span>${getStatusLabel(st)}</span><b>${n}</b></div>`).join('')||'<div class="empty-state">Нет записей</div>';
-    }
-
-    function renderStudents(){
-        const tbody=document.getElementById('studentsTableBody'); const isZ=isZavuch();
-        const firstStudents = appData.students.slice(0, 100);
-        tbody.innerHTML=firstStudents.map(s=>`<tr><td><strong>${escapeHtml(s.name)}</strong></td><td>${escapeHtml(s.class)}</td><td>${isZ?`<button class="btn btn-danger btn-sm" onclick="removeStudent('${s.id}')">Удалить</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="3" class="empty-state">Нет учеников</td></tr>';
-    }
-    function renderStudentSelects(){
-        const stat=document.getElementById('studentStatSelect');
-        const currentStat=stat.value;
-        const opts='<option value="">Выберите ученика...</option>'+appData.students.slice(0, 200).sort((a,b)=>a.class.localeCompare(b.class,'ru')||a.name.localeCompare(b.name,'ru')).map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.class)} — ${escapeHtml(s.name)}</option>`).join('');
-        stat.innerHTML=opts;
-        if(appData.students.some(s=>s.id===currentStat)) stat.value=currentStat;
-        renderMarkClasses();
-        renderMarkStudents();
-    }
-    function renderMarkClasses(){
-        const sel=document.getElementById('markClassSelect');
-        if(!sel) return;
-        const current=sel.value;
-        const classes=[...new Set(appData.students.map(s=>String(s.class).trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru',{numeric:true}));
-        sel.innerHTML='<option value="">— Выберите класс —</option>'+classes.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-        if(classes.includes(current)) sel.value=current;
-    }
-    function renderMarkStudents(){
-        const classSel=document.getElementById('markClassSelect');
-        const studentSel=document.getElementById('studentSelect');
-        const searchEl=document.getElementById('markStudentSearch');
-        if(!classSel||!studentSel) return;
-        const cls=classSel.value;
-        const q=(searchEl?.value||'').trim().toLowerCase();
-        const current=studentSel.value;
-        let list=appData.students.filter(s=>!cls || s.class===cls);
-        if(q) list=list.filter(s=>s.name.toLowerCase().includes(q));
-        list=list.slice().sort((a,b)=>a.name.localeCompare(b.name,'ru'));
-        studentSel.disabled=!cls && !q;
-        studentSel.innerHTML=(cls || q ?'<option value="">— Выберите ученика —</option>':'<option value="">— Выберите класс или введите поиск —</option>')+list.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)} (${escapeHtml(s.class)})</option>`).join('');
-        if(list.some(s=>s.id===current)) studentSel.value=current;
-    }
-    function renderTodayStats(){renderStatsSummary();}
-    function renderTodayTable(){
-        const rows=appData.records.filter(r=>r.date===today).slice().reverse().slice(0,10);
-        document.getElementById('todayTableBody').innerHTML=rows.map(r=>`<tr><td>${escapeHtml(r.time||'—')}</td><td>${escapeHtml(getStudentName(r.studentId))}</td><td>${escapeHtml(getStudentClass(r.studentId))}</td><td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td></tr>`).join('')||'<tr><td colspan="4" class="empty-state">Нет записей сегодня</td></tr>';
-    }
-    function renderTodayFull(){
-        const rows=appData.records.filter(r=>r.date===today).slice().reverse();
-        document.getElementById('todayFullTable').innerHTML=rows.map(r=>`<tr><td>${escapeHtml(r.time||'—')}</td><td>${escapeHtml(getStudentName(r.studentId))}</td><td>${escapeHtml(getStudentClass(r.studentId))}</td><td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td></tr>`).join('')||'<tr><td colspan="4" class="empty-state">Нет записей сегодня</td></tr>';
-    }
-    function renderJournal(){
-        const fc=document.getElementById('filterClass').value, fn=document.getElementById('filterName').value.toLowerCase().trim(); let rows=appData.records.slice().reverse();
-        if(fc)rows=rows.filter(r=>getStudentClass(r.studentId)===fc);if(fn)rows=rows.filter(r=>getStudentName(r.studentId).toLowerCase().includes(fn));
-        document.getElementById('journalTableBody').innerHTML=rows.map(r=>`<tr><td>${escapeHtml(r.date)}</td><td><strong>${escapeHtml(getStudentName(r.studentId))}</strong></td><td>${escapeHtml(getStudentClass(r.studentId))}</td><td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td><td>${escapeHtml(r.note||'—')}</td><td>${escapeHtml(r.teacher||'—')}</td></tr>`).join('')||'<tr><td colspan="6" class="empty-state">Нет записей</td></tr>';
-    }
-    function renderClassFilter(){
-        const sel=document.getElementById('filterClass'),cur=sel.value,classes=[...new Set(appData.students.map(s=>s.class))].sort((a,b)=>a.localeCompare(b,'ru'));
-        sel.innerHTML='<option value="">Все классы</option>'+classes.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');if(classes.includes(cur))sel.value=cur;
-    }
-    function renderStudentStats(){
-        const id=document.getElementById('studentStatSelect').value;
-        if(!id){['statTotal','statLate2','statAbsent2'].forEach(x=>document.getElementById(x).textContent='0');document.getElementById('statViolation').textContent='—';document.getElementById('statDetailTable').innerHTML='';return;}
-        const rows=appData.records.filter(r=>r.studentId===id),late=rows.filter(r=>r.status==='late').length,abs=rows.filter(r=>r.status==='absent').length;
-        document.getElementById('statTotal').textContent=rows.length;document.getElementById('statLate2').textContent=late;document.getElementById('statAbsent2').textContent=abs;document.getElementById('statViolation').textContent=rows.length?((late+abs)/rows.length*100).toFixed(1)+'%':'—';
-        document.getElementById('statDetailTable').innerHTML=rows.slice().reverse().map(r=>`<tr><td>${escapeHtml(r.date)}</td><td><span class="status-badge ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td><td>${escapeHtml(r.note||'—')}</td></tr>`).join('')||'<tr><td colspan="3" class="empty-state">Нет записей</td></tr>';
-    }
-
-    // ======================== ACTIONS ========================
-    async function markAttendance(){
-        if(!currentUser){alert('Войдите в систему');return;}
-        const studentId=document.getElementById('studentSelect').value,status=document.getElementById('statusSelect').value,note=document.getElementById('noteInput').value.trim();
-        if(!studentId){alert('Выберите ученика');return;}
-        const now=new Date(), record={studentId,date:today,time:now.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),status,note};
-        const result=await callApi('addRecord',record);
-        if(result.success){await loadData();document.getElementById('noteInput').value='';setStatus('online',result.updated?'Отметка обновлена':'Сохранено');setTimeout(()=>setStatus('online','Онлайн'),1500);}
-        else alert(result.error||'Ошибка сохранения');
-    }
-    async function addStudent(){
-        if(!isZavuch()){alert('Только завуч может добавлять учеников. Выйдите и войдите под логином завуча.');return;}
-        const name=document.getElementById('studentName').value.trim(),cls=document.getElementById('studentClass').value.trim();if(!name||!cls){alert('Введите ФИО и класс');return;}
-        const result=await callApi('addStudent',{name,class:cls});if(result.success){await loadData();document.getElementById('studentName').value='';document.getElementById('studentClass').value='';}else alert(result.error||'Ошибка');
-    }
-    async function removeStudent(id){
-        if(!isZavuch()){alert('Только завуч может удалять учеников.');return;}
-        if(!confirm('Удалить этого ученика?')) return;
-        const result=await callApi('removeStudent',{id});
-        if(result.success){await loadData();}else alert(result.error||'Ошибка удаления');
-    }
-    async function resetAll(){
-        if(!isZavuch()){alert('Доступно только завучу.');return;}
-        if(!confirm('Вы уверены, что хотите сбросить ВСЕ записи посещаемости?')) return;
-        const result=await callApi('resetRecords');
-        if(result.success){await loadData();alert('Записи сброшены.');}else alert(result.error||'Ошибка');
-    }
-
-    function exportXLSX() {
-        if(typeof XLSX==='undefined'){alert('Библиотека Excel не загрузилась.');return;}
-        const data = appData.records.map(r => ({
-            'Дата': r.date,
-            'Время': r.time || '',
-            'ФИО': getStudentName(r.studentId),
-            'Класс': getStudentClass(r.studentId),
-            'Статус': getStatusLabel(r.status),
-            'Примечание': r.note || '',
-            'Отметил': r.teacher || ''
-        }));
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Посещаемость");
-        XLSX.writeFile(wb, `Журнал_Посещаемости_${today}.xlsx`);
-    }
-
-    function exportCSV() {
-        let csv = 'Дата;Время;ФИО;Класс;Статус;Примечание;Отметил\n';
-        appData.records.forEach(r => {
-            csv += `"${r.date}";"${r.time||''}";"${getStudentName(r.studentId)}";"${getStudentClass(r.studentId)}";"${getStatusLabel(r.status)}";"${r.note||''}";"${r.teacher||''}"\n`;
-        });
-        const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `Журнал_Посещаемости_${today}.csv`;
-        link.click();
-    }
-
-    // TABS LOGIC
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            btn.classList.add('active');
-            const target = btn.getAttribute('data-tab');
-            document.getElementById(target).classList.add('active');
-        });
-    });
-
-    // INIT
-    if(sessionToken) {
-        loadData().then(() => {
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('mainApp').classList.remove('hidden');
-            startAutoSync();
-        });
+    function switchTab(tabId, btn) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(tabId).classList.add('active');
     }
 </script>
 </body>
