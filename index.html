@@ -11,7 +11,7 @@
         body { font-family: 'Inter', sans-serif; background: #F0F5FA; color: #1F2937; padding: 20px; }
         .app-container { max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #E5E7EB; padding-bottom: 16px; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
-        .logo { font-size: 20px; font-weight: 700; color: #3A5A7A; }
+        .logo { font-size: 20px; font-weight: 700; color: #3A5A7A; display: flex; align-items: center; gap: 8px; }
         .header-btns { display: flex; gap: 10px; align-items: center; }
         .btn { padding: 9px 16px; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: 0.2s; }
         .btn-primary { background: #4F6F8F; color: #fff; }
@@ -20,6 +20,9 @@
         .btn-success:hover { background: #059669; }
         .btn-outline { background: #F3F4F6; color: #374151; border: 1px solid #D1D5DB; }
         
+        .live-indicator { display: inline-block; width: 10px; height: 10px; background: #10B981; border-radius: 50%; box-shadow: 0 0 8px #10B981; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
         .stat-card { background: #F9FAFB; border: 1px solid #E5E7EB; padding: 16px; border-radius: 12px; text-align: center; }
         .stat-card .val { font-size: 26px; font-weight: 700; color: #111827; }
@@ -42,7 +45,7 @@
         th { background: #F3F4F6; font-weight: 600; position: sticky; top: 0; }
         
         .badge-info { background: #FEF3C7; color: #92400E; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; border: 1px solid #FCD34D; }
-        .status-sync { font-size: 12px; color: #6B7280; margin-top: 4px; text-align: right; }
+        .status-sync { font-size: 12px; color: #6B7280; margin-top: 6px; text-align: right; }
         
         .filter-panel { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; background: #F3F4F6; padding: 14px; border-radius: 10px; margin-bottom: 16px; }
         .filter-panel label { font-size: 13px; font-weight: 600; }
@@ -58,9 +61,12 @@
 
 <div class="app-container">
     <div class="header">
-        <div class="logo">🏫 Учёт посещаемости №107</div>
+        <div class="logo">
+            <span class="live-indicator"></span> 
+            🏫 Учёт посещаемости №107 (Онлайн)
+        </div>
         <div class="header-btns">
-            <button class="btn btn-outline" onclick="syncWithGoogleDrive()">🔄 Обновить из облака</button>
+            <button class="btn btn-outline" onclick="syncWithGoogleDrive(true)">🔄 Обновить сейчас</button>
             <button class="btn btn-success" onclick="triggerImport()">🔒 Импорт Excel (Пароль)</button>
             <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display:none;" onchange="importExcelFile(event)">
         </div>
@@ -97,11 +103,11 @@
                     <option value="Причина">Уважительная причина</option>
                 </select>
                 <input type="text" id="noteInput" placeholder="Примечание (необязательно)">
-                <button class="btn btn-primary" style="width:100%" id="saveBtn" onclick="saveRecord()">Сохранить и отправить в облако</button>
-                <div class="status-sync" id="syncStatus">Все данные синхронизированы</div>
+                <button class="btn btn-primary" style="width:100%" id="saveBtn" onclick="saveRecord()">Сохранить и отправить всем</button>
+                <div class="status-sync" id="syncStatus">🟢 Подключено к сети</div>
             </div>
             <div class="card">
-                <h3>Записи за сегодня</h3>
+                <h3>Записи за сегодня (Онлайн)</h3>
                 <div class="table-wrap">
                     <table>
                         <thead><tr><th>Время</th><th>ФИО</th><th>Класс</th><th>Статус</th></tr></thead>
@@ -115,7 +121,7 @@
     <!-- Вкладка списка учеников -->
     <div id="tab-students" class="section">
         <div id="noDataNotice" class="badge-info" style="display:none;">
-            ⚠️ Список учеников не загружен. Нажмите кнопку «🔒 Импорт Excel (Пароль)».
+            ⚠️ Список учеников не загружен. Нажмите «🔒 Импорт Excel (Пароль)».
         </div>
         <div style="display:flex; gap:10px; margin-bottom:12px;">
             <input type="text" id="studentListSearch" placeholder="Быстрый поиск ученика..." oninput="renderStudentsTable()" style="margin:0;">
@@ -128,7 +134,7 @@
         </div>
     </div>
 
-    <!-- Вкладка журнала с выбором периода -->
+    <!-- Вкладка журнала -->
     <div id="tab-journal" class="section">
         <div class="filter-panel">
             <label>Период:</label>
@@ -165,9 +171,8 @@
 </div>
 
 <script>
-    // ⚙️ НАСТРОЙКИ ПРИЛОЖЕНИЯ:
-    const IMPORT_PASSWORD = "107"; // Ваш пароль на импорт файла
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyYxk8U5MJup5v9RT3caOWgnBjH8BWn3pptJduu1rVyPLe83OQgxvIG_cQ4OJ-7mBTssg/exec"; // Вставьте ссылку из Шага 1
+    const IMPORT_PASSWORD = "107";
+    const GOOGLE_SCRIPT_URL = "ВСТАВЬТЕ_СЮДА_ССЫЛКУ_ИЗ_ШАГА_1"; 
 
     let students = [];
     let records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
@@ -183,7 +188,10 @@
                 .then(buffer => parseExcelBuffer(buffer))
                 .catch(() => updateAll());
         }
+
+        // Первичная синхронизация и запуск таймера авто-обновления каждые 5 секунд
         syncWithGoogleDrive();
+        setInterval(() => syncWithGoogleDrive(false), 5000);
     };
 
     function triggerImport() {
@@ -304,7 +312,7 @@
 
         if (GOOGLE_SCRIPT_URL && !GOOGLE_SCRIPT_URL.includes("ВСТАВЬТЕ_СЮДА")) {
             const statusDiv = document.getElementById('syncStatus');
-            statusDiv.textContent = "⏳ Отправка в Google Таблицу...";
+            statusDiv.textContent = "⏳ Отправка всем участникам...";
             try {
                 await fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
@@ -312,17 +320,19 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(rec)
                 });
-                statusDiv.textContent = "✅ Отправлено в Google Таблицу";
+                statusDiv.textContent = "✅ Сохранено онлайн";
+                setTimeout(() => syncWithGoogleDrive(false), 1000);
             } catch (err) {
                 statusDiv.textContent = "⚠️ Сохранено локально";
             }
         }
     }
 
-    async function syncWithGoogleDrive() {
+    async function syncWithGoogleDrive(showToast = false) {
         if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("ВСТАВЬТЕ_СЮДА")) return;
         const statusDiv = document.getElementById('syncStatus');
-        statusDiv.textContent = "⏳ Синхронизация...";
+        if (showToast) statusDiv.textContent = "⏳ Обновление...";
+
         try {
             const res = await fetch(GOOGLE_SCRIPT_URL);
             const remoteRecords = await res.json();
@@ -330,10 +340,10 @@
                 records = remoteRecords.reverse();
                 localStorage.setItem('attendance_records', JSON.stringify(records));
                 updateAll();
-                statusDiv.textContent = "✅ Данные обновлены из облака";
+                statusDiv.textContent = "🟢 Онлайн-синхронизация активна";
             }
         } catch (err) {
-            statusDiv.textContent = "Готово (офлайн режим)";
+            statusDiv.textContent = "🟡 Офлайн режим";
         }
     }
 
