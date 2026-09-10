@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Учёт посещаемости — Школа 107</title>
+    <title>Учёт посещаемости — Школа №107</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -37,6 +37,7 @@
         table { width: 100%; border-collapse: collapse; font-size: 14px; background: #fff; }
         th, td { padding: 10px 14px; border-bottom: 1px solid #E5E7EB; text-align: left; }
         th { background: #F3F4F6; font-weight: 600; position: sticky; top: 0; }
+        .badge-info { background: #FEF3C7; color: #92400E; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; border: 1px solid #FCD34D; }
     </style>
 </head>
 <body>
@@ -46,15 +47,15 @@
         <div class="logo">🏫 Учёт посещаемости №107</div>
         <div class="header-btns">
             <label class="btn btn-success">
-                📁 Загрузить новый Excel
+                📁 Загрузить файл Excel
                 <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display:none;" onchange="importExcelFile(event)">
             </label>
-            <button class="btn btn-outline" onclick="resetToBuiltin()">Сбросить к исходным (1718)</button>
+            <button class="btn btn-outline" onclick="resetData()">Сбросить память</button>
         </div>
     </div>
 
     <div class="stats-grid">
-        <div class="stat-card"><div class="val" id="statTotal">1718</div><div class="lbl">Всего учеников</div></div>
+        <div class="stat-card"><div class="val" id="statTotal">0</div><div class="lbl">Всего учеников</div></div>
         <div class="stat-card"><div class="val" id="statClasses">0</div><div class="lbl">Классов</div></div>
         <div class="stat-card"><div class="val" id="statToday">0</div><div class="lbl">Отметок сегодня</div></div>
     </div>
@@ -100,8 +101,11 @@
 
     <!-- Вкладка списка учеников -->
     <div id="tab-students" class="section">
+        <div id="noDataNotice" class="badge-info" style="display:none;">
+            ⚠️ Список загружается из файла <code>контингент.xlsx</code>...
+        </div>
         <div style="display:flex; gap:10px; margin-bottom:12px;">
-            <input type="text" id="studentListSearch" placeholder="Быстрый поиск ученика или класса..." oninput="renderStudentsTable()" style="margin:0;">
+            <input type="text" id="studentListSearch" placeholder="Быстрый поиск ученика..." oninput="renderStudentsTable()" style="margin:0;">
         </div>
         <div class="table-wrap">
             <table>
@@ -123,39 +127,45 @@
 </div>
 
 <script>
-    // Полноценный встроенный файл с автозагрузкой ваших 1718 учеников
-    let BUILTIN_DATA = [];
     let students = [];
     let records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
 
-    // При открытии сайта автоматически загружаем файл контингент_2.xlsx
     window.onload = function() {
         const saved = localStorage.getItem('loaded_students');
         if (saved) {
             students = JSON.parse(saved);
             updateAll();
         } else {
-            // Если в браузере ничего нет, тянем файл из папки GitHub
-            fetch('контингент_2.xlsx')
-                .then(res => res.arrayBuffer())
+            // Пробуем автозагрузку с GitHub репозитория по правильному имени 'контингент.xlsx'
+            fetch('контингент.xlsx')
+                .then(res => {
+                    if (!res.ok) throw new Error('File not found');
+                    return res.arrayBuffer();
+                })
                 .then(buffer => {
-                    const wb = XLSX.read(buffer, {type: 'array'});
-                    const sheet = wb.Sheets[wb.SheetNames[0]];
-                    const data = XLSX.utils.sheet_to_json(sheet);
-                    students = data.map((r, i) => ({
-                        id: 'STU-' + (r['№'] || (i + 1)),
-                        name: String(r['Ф.И.О.'] || r['ФИО'] || '').trim(),
-                        class: String(r['класс'] || r['Класс'] || '').trim()
-                    })).filter(s => s.name);
-                    BUILTIN_DATA = [...students];
-                    updateAll();
+                    parseExcelBuffer(buffer);
                 })
                 .catch(err => {
-                    console.log('Ждем ручной импорт или локальную загрузку');
+                    console.log('Автозагрузка не удалась, требуется загрузить файл вручную.');
                     updateAll();
                 });
         }
     };
+
+    function parseExcelBuffer(buffer) {
+        const wb = XLSX.read(buffer, {type: 'array'});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(sheet);
+        
+        students = data.map((r, i) => ({
+            id: 'STU-' + (r['№'] || (i + 1)),
+            name: String(r['Ф.И.О.'] || r['ФИО'] || r['Имя'] || '').trim(),
+            class: String(r['класс'] || r['Класс'] || '').trim()
+        })).filter(s => s.name);
+
+        localStorage.setItem('loaded_students', JSON.stringify(students));
+        updateAll();
+    }
 
     function importExcelFile(event) {
         const file = event.target.files[0];
@@ -164,20 +174,8 @@
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const rows = XLSX.utils.sheet_to_json(firstSheet);
-
-                students = rows.map((r, i) => ({
-                    id: 'STU-' + (r['№'] || (i + 1)),
-                    name: String(r['Ф.И.О.'] || r['ФИО'] || r['Name'] || '').trim(),
-                    class: String(r['класс'] || r['Класс'] || r['Class'] || '').trim()
-                })).filter(s => s.name !== '');
-
-                localStorage.setItem('loaded_students', JSON.stringify(students));
-                alert(`Успешно импортировано ${students.length} учеников!`);
-                updateAll();
+                parseExcelBuffer(new Uint8Array(e.target.result));
+                alert(`Успешно загружено ${students.length} учеников!`);
             } catch (err) {
                 alert('Ошибка импорта Excel: ' + err.message);
             }
@@ -185,9 +183,12 @@
         reader.readAsArrayBuffer(file);
     }
 
-    function resetToBuiltin() {
-        localStorage.removeItem('loaded_students');
-        location.reload();
+    function resetData() {
+        if (confirm('Очистить загруженный список?')) {
+            localStorage.removeItem('loaded_students');
+            students = [];
+            updateAll();
+        }
     }
 
     function updateAll() {
@@ -198,6 +199,8 @@
         const todayStr = new Date().toLocaleDateString('ru-RU');
         const todayRecs = records.filter(r => r.date === todayStr);
         document.getElementById('statToday').textContent = todayRecs.length;
+
+        document.getElementById('noDataNotice').style.display = students.length === 0 ? 'block' : 'none';
 
         const classSelect = document.getElementById('classFilter');
         const currentCls = classSelect.value;
