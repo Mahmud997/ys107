@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> №107 школа-лицей. Автор: Алимов М.К.</title>
+    <title>Учёт посещаемости — Школа №107 Автор: Алимов М.К. тел:+77076602650</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -63,7 +63,7 @@
     <div class="header">
         <div class="logo">
             <span class="live-indicator"></span> 
-            Учёт посещаемости №107 (Онлайн)
+            Учёт посещаемости. Автор: Алимов М.К. тел:+77076602650
         </div>
         <div class="header-btns">
             <button class="btn btn-outline" onclick="syncWithGoogleDrive(true)">Обновить сейчас</button>
@@ -104,7 +104,7 @@
                 </select>
                 <input type="text" id="noteInput" placeholder="Примечание (необязательно)">
                 <button class="btn btn-primary" style="width:100%" id="saveBtn" onclick="saveRecord()">Сохранить и отправить всем</button>
-                <div class="status-sync" id="syncStatus">Подключено к сети</div>
+                <div class="status-sync" id="syncStatus">Подключение...</div>
             </div>
             <div class="card">
                 <h3>Записи за сегодня (Онлайн)</h3>
@@ -172,7 +172,8 @@
 
 <script>
     const IMPORT_PASSWORD = "107";
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby8LV5pPHh-q_qna9njDwTvsFh9kUwbWr-swYbyEYPOTe81P6xj7v0rYC_PAhHKu3N3EQ/exec"; 
+    // ВСТАВЬТЕ ВАШУ ССЫЛКУ НИЖЕ:
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgHXXja0ZRr9GB8mY1a2Bu6_NyzENB9ULYAwd085e-B0MdvKRQpYG--t8WKAVYd0BW/exec"; 
 
     let students = [];
     let records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
@@ -189,8 +190,8 @@
                 .catch(() => updateAll());
         }
 
-        syncWithGoogleDrive();
-        setInterval(() => syncWithGoogleDrive(false), 4000);
+        syncWithGoogleDrive(true);
+        setInterval(() => syncWithGoogleDrive(false), 5000);
     };
 
     function triggerImport() {
@@ -311,28 +312,34 @@
             note: note
         };
 
-        records.unshift(rec);
-        localStorage.setItem('attendance_records', JSON.stringify(records));
-        
-        document.getElementById('studentSelect').value = '';
-        document.getElementById('noteInput').value = '';
-        updateAll();
+        const saveBtn = document.getElementById('saveBtn');
+        const statusDiv = document.getElementById('syncStatus');
+        saveBtn.disabled = true;
+        statusDiv.textContent = "Отправка...";
 
-        if (GOOGLE_SCRIPT_URL && !GOOGLE_SCRIPT_URL.includes("ВСТАВЬТЕ_СЮДА")) {
-            const statusDiv = document.getElementById('syncStatus');
-            statusDiv.textContent = "Отправка всем...";
-            try {
+        try {
+            if (GOOGLE_SCRIPT_URL && !GOOGLE_SCRIPT_URL.includes("ВСТАВЬТЕ_СЮДА")) {
                 await fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify(rec)
                 });
-                statusDiv.textContent = "Сохранено в облако";
-                setTimeout(() => syncWithGoogleDrive(false), 1500);
-            } catch (err) {
-                statusDiv.textContent = "Ошибка отправки";
             }
+
+            records.unshift(rec);
+            localStorage.setItem('attendance_records', JSON.stringify(records));
+
+            document.getElementById('studentSelect').value = '';
+            document.getElementById('noteInput').value = '';
+            updateAll();
+
+            statusDiv.textContent = "Сохранено";
+            setTimeout(() => syncWithGoogleDrive(false), 1000);
+        } catch (err) {
+            statusDiv.textContent = "Ошибка отправки";
+        } finally {
+            saveBtn.disabled = false;
         }
     }
 
@@ -342,14 +349,24 @@
         if (showToast) statusDiv.textContent = "Синхронизация...";
 
         try {
-            const res = await fetch(GOOGLE_SCRIPT_URL, { redirect: 'follow' });
-            const remoteRecords = await res.json();
+            const res = await fetch(GOOGLE_SCRIPT_URL);
+            const text = await res.text();
             
-            if (Array.isArray(remoteRecords)) {
+            // Защита от не-JSON ответов
+            let remoteRecords = [];
+            try {
+                remoteRecords = JSON.parse(text);
+            } catch(e) {
+                console.error("Неверный ответ от Google Script:", text);
+            }
+
+            if (Array.isArray(remoteRecords) && remoteRecords.length > 0) {
                 records = remoteRecords.reverse();
                 localStorage.setItem('attendance_records', JSON.stringify(records));
                 updateAll();
                 statusDiv.textContent = "Онлайн-синхронизация активна";
+            } else {
+                if (showToast) statusDiv.textContent = "Синхронизировано (записей нет)";
             }
         } catch (err) {
             if (showToast) statusDiv.textContent = "Офлайн режим";
