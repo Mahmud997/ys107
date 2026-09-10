@@ -1134,8 +1134,10 @@
     // ======================== PERMISSIONS ========================
     function isZavuch(){
         if(!currentUser) return false;
-        const r=String(currentUser.role||'').trim().toLowerCase();
-        return ['zavuch','завуч','admin','administrator','администратор'].includes(r);
+        const role=String(currentUser.role||'').trim().toLowerCase().replace(/ё/g,'е');
+        const login=String(currentUser.login||'').trim().toLowerCase();
+        const normalized=role.replace(/[^a-zа-я0-9]+/gi,'');
+        return ['zavuch','завуч','admin','administrator','администратор'].includes(normalized) || login==='zavuch';
     }
     function applyRolePermissions(){
         const isZ = isZavuch();

@@ -78,8 +78,9 @@ function makeId_() {
 }
 
 function normalizeRole_(role) {
-  const r = String(role || '').trim().toLowerCase();
-  if (['zavuch','завуч','admin','administrator','администратор'].includes(r)) return 'zavuch';
+  const r = String(role || '').trim().toLowerCase().replace(/ё/g,'е');
+  const normalized = r.replace(/[^a-zа-я0-9]+/gi,'');
+  if (['zavuch','завуч','admin','administrator','администратор'].includes(normalized)) return 'zavuch';
   return 'teacher';
 }
 
@@ -90,13 +91,16 @@ function login_(p) {
 
   const data = sheet_(SHEETS.users).getDataRange().getValues();
   for (let i=1; i<data.length; i++) {
-    if (String(data[i][0]) === login && String(data[i][1]) === password) {
+    const rowLogin = String(data[i][0] || '').trim();
+    const rowPassword = String(data[i][1] || '');
+    if (rowLogin.toLowerCase() === login.toLowerCase() && rowPassword === password) {
       const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g,'');
       const s = ensureSessionsSheet_();
       cleanupSessions_(s);
-      const role = normalizeRole_(data[i][2] || 'teacher');
-      s.appendRow([token, login, role, String(data[i][3] || login), Date.now()]);
-      return json_({ success:true, token, role, name:String(data[i][3] || login) });
+      // Логин zavuch всегда получает роль завуча; в остальных случаях используется колонка role.
+      const role = rowLogin.toLowerCase() === 'zavuch' ? 'zavuch' : normalizeRole_(data[i][2] || 'teacher');
+      s.appendRow([token, rowLogin, role, String(data[i][3] || rowLogin), Date.now()]);
+      return json_({ success:true, token, role, name:String(data[i][3] || rowLogin) });
     }
   }
   return json_({ success:false, error:'Неверный логин или пароль' });
