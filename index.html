@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Учёт посещаемости — Школа №107 Автор: Алимов М.К. тел:+77076602650</title>
+    <title>Учёт посещаемости — Школа №107</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -63,7 +63,7 @@
     <div class="header">
         <div class="logo">
             <span class="live-indicator"></span> 
-            Учёт посещаемости. Автор: Алимов М.К. тел:+77076602650
+            Учёт посещаемости №107 (Онлайн)
         </div>
         <div class="header-btns">
             <button class="btn btn-outline" onclick="syncWithGoogleDrive(true)">Обновить сейчас</button>
@@ -172,8 +172,8 @@
 
 <script>
     const IMPORT_PASSWORD = "107";
-    // ВСТАВЬТЕ ВАШУ ССЫЛКУ НИЖЕ:
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgHXXja0ZRr9GB8mY1a2Bu6_NyzENB9ULYAwd085e-B0MdvKRQpYG--t8WKAVYd0BW/exec"; 
+    // ВСТАВЬТЕ ССЫЛКУ ИЗ ШАГА 1:
+    const GOOGLE_SCRIPT_URL = "ВСТАВЬТЕ_СЮДА_ССЫЛКУ_ИЗ_ШАГА_1"; 
 
     let students = [];
     let records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
@@ -191,7 +191,7 @@
         }
 
         syncWithGoogleDrive(true);
-        setInterval(() => syncWithGoogleDrive(false), 5000);
+        setInterval(() => syncWithGoogleDrive(false), 4000);
     };
 
     function triggerImport() {
@@ -240,7 +240,7 @@
         document.getElementById('statClasses').textContent = classes.length;
         
         const todayStr = new Date().toLocaleDateString('ru-RU');
-        const todayRecs = records.filter(r => r.date === todayStr);
+        const todayRecs = records.filter(r => normalizeDateStr(r.date) === todayStr);
         document.getElementById('statToday').textContent = todayRecs.length;
 
         document.getElementById('noDataNotice').style.display = students.length === 0 ? 'block' : 'none';
@@ -317,6 +317,14 @@
         saveBtn.disabled = true;
         statusDiv.textContent = "Отправка...";
 
+        // Сначала сохраняем локально, чтобы учитель сразу увидел свою запись
+        records.unshift(rec);
+        localStorage.setItem('attendance_records', JSON.stringify(records));
+        
+        document.getElementById('studentSelect').value = '';
+        document.getElementById('noteInput').value = '';
+        updateAll();
+
         try {
             if (GOOGLE_SCRIPT_URL && !GOOGLE_SCRIPT_URL.includes("ВСТАВЬТЕ_СЮДА")) {
                 await fetch(GOOGLE_SCRIPT_URL, {
@@ -326,18 +334,10 @@
                     body: JSON.stringify(rec)
                 });
             }
-
-            records.unshift(rec);
-            localStorage.setItem('attendance_records', JSON.stringify(records));
-
-            document.getElementById('studentSelect').value = '';
-            document.getElementById('noteInput').value = '';
-            updateAll();
-
-            statusDiv.textContent = "Сохранено";
-            setTimeout(() => syncWithGoogleDrive(false), 1000);
+            statusDiv.textContent = "Сохранено в облако";
+            setTimeout(() => syncWithGoogleDrive(false), 1500);
         } catch (err) {
-            statusDiv.textContent = "Ошибка отправки";
+            statusDiv.textContent = "Ошибка сети (сохранено локально)";
         } finally {
             saveBtn.disabled = false;
         }
@@ -352,25 +352,34 @@
             const res = await fetch(GOOGLE_SCRIPT_URL);
             const text = await res.text();
             
-            // Защита от не-JSON ответов
             let remoteRecords = [];
             try {
                 remoteRecords = JSON.parse(text);
             } catch(e) {
-                console.error("Неверный ответ от Google Script:", text);
+                console.error("Ошибка формата данных от Google:", text);
             }
 
             if (Array.isArray(remoteRecords) && remoteRecords.length > 0) {
+                // Разворачиваем, чтобы свежие записи были сверху
                 records = remoteRecords.reverse();
                 localStorage.setItem('attendance_records', JSON.stringify(records));
                 updateAll();
                 statusDiv.textContent = "Онлайн-синхронизация активна";
-            } else {
-                if (showToast) statusDiv.textContent = "Синхронизировано (записей нет)";
+            } else if (showToast) {
+                statusDiv.textContent = "Подключено к сети";
             }
         } catch (err) {
             if (showToast) statusDiv.textContent = "Офлайн режим";
         }
+    }
+
+    function normalizeDateStr(str) {
+        if (!str) return '';
+        if (str.includes('T')) {
+            const d = new Date(str);
+            return d.toLocaleDateString('ru-RU');
+        }
+        return str;
     }
 
     function onPeriodChange() {
@@ -384,9 +393,10 @@
         renderJournal();
     }
 
-    function parseDateStr(str) {
+    function parseDateObj(str) {
         if (!str) return null;
-        const parts = str.split('.');
+        const norm = normalizeDateStr(str);
+        const parts = norm.split('.');
         if (parts.length === 3) {
             return new Date(parts[2], parts[1] - 1, parts[0]);
         }
@@ -395,7 +405,7 @@
 
     function renderJournal() {
         const todayStr = new Date().toLocaleDateString('ru-RU');
-        const todayRecs = records.filter(r => r.date === todayStr);
+        const todayRecs = records.filter(r => normalizeDateStr(r.date) === todayStr);
 
         document.getElementById('todayList').innerHTML = todayRecs.map(r => `
             <tr>
@@ -411,8 +421,8 @@
         now.setHours(0,0,0,0);
 
         let filteredRecords = records.filter(r => {
-            const rDate = parseDateStr(r.date);
-            if (!rDate) return true;
+            const rDate = parseDateObj(r.date);
+            if (!rDate || isNaN(rDate.getTime())) return true;
             rDate.setHours(0,0,0,0);
 
             if (period === 'today') {
@@ -444,7 +454,7 @@
 
         document.getElementById('journalTable').innerHTML = filteredRecords.map(r => `
             <tr>
-                <td>${r.date}</td>
+                <td>${normalizeDateStr(r.date)}</td>
                 <td>${r.time}</td>
                 <td>${r.name}</td>
                 <td>${r.class}</td>
