@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Учёт посещаемости — Школа №107</title>
+    <title>Учёт посещаемости — Разработчик: Алимов М.К.</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -63,7 +63,7 @@
     <div class="header">
         <div class="logo">
             <span class="live-indicator"></span> 
-            Учёт посещаемости №107 (Онлайн)
+            Учёт посещаемости.Разработчик:Алимов М.К.
         </div>
         <div class="header-btns">
             <button class="btn btn-outline" onclick="syncWithGoogleDrive(true)">Обновить сейчас</button>
@@ -173,7 +173,7 @@
 <script>
     const IMPORT_PASSWORD = "107";
     // ВСТАВЬТЕ ССЫЛКУ ИЗ ШАГА 1:
-    const GOOGLE_SCRIPT_URL = "ВСТАВЬТЕ_СЮДА_ССЫЛКУ_ИЗ_ШАГА_1"; 
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzMDlZiMMK-Si27ayUulh1VGEz0huQBsZtvYdHP_t0ESI9WxrynpoTa6Ag7zOOjBVTNvg/exec"; 
 
     let students = [];
     let records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
