@@ -19,10 +19,12 @@
         .btn-success { background: #10B981; color: #fff; }
         .btn-success:hover { background: #059669; }
         .btn-outline { background: #F3F4F6; color: #374151; border: 1px solid #D1D5DB; }
+        
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
         .stat-card { background: #F9FAFB; border: 1px solid #E5E7EB; padding: 16px; border-radius: 12px; text-align: center; }
         .stat-card .val { font-size: 26px; font-weight: 700; color: #111827; }
         .stat-card .lbl { font-size: 13px; color: #6B7280; margin-top: 4px; }
+        
         .tabs { display: flex; gap: 8px; border-bottom: 2px solid #E5E7EB; margin-bottom: 20px; }
         .tab { padding: 10px 18px; border: none; background: none; font-size: 14px; font-weight: 600; color: #6B7280; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
         .tab.active { color: #4F6F8F; border-bottom-color: #4F6F8F; }
@@ -33,11 +35,23 @@
         .card { background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px; }
         .card h3 { margin-bottom: 14px; font-size: 16px; }
         select, input { width: 100%; padding: 10px; border: 1px solid #D1D5DB; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+        
         .table-wrap { overflow-x: auto; max-height: 450px; border: 1px solid #E5E7EB; border-radius: 8px; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; background: #fff; }
         th, td { padding: 10px 14px; border-bottom: 1px solid #E5E7EB; text-align: left; }
         th { background: #F3F4F6; font-weight: 600; position: sticky; top: 0; }
+        
         .badge-info { background: #FEF3C7; color: #92400E; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; border: 1px solid #FCD34D; }
+        .status-sync { font-size: 12px; color: #6B7280; margin-top: 4px; text-align: right; }
+        
+        .filter-panel { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; background: #F3F4F6; padding: 14px; border-radius: 10px; margin-bottom: 16px; }
+        .filter-panel label { font-size: 13px; font-weight: 600; }
+        .filter-panel select, .filter-panel input { width: auto; margin: 0; }
+        .date-range { display: none; gap: 8px; align-items: center; }
+        .date-range.active { display: flex; }
+        .summary-box { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .summary-item { background: #EFF6FF; border: 1px solid #BFDBFE; padding: 10px; border-radius: 8px; text-align: center; font-size: 13px; }
+        .summary-item strong { display: block; font-size: 18px; color: #1E40AF; }
     </style>
 </head>
 <body>
@@ -46,11 +60,9 @@
     <div class="header">
         <div class="logo">🏫 Учёт посещаемости №107</div>
         <div class="header-btns">
-            <label class="btn btn-success">
-                📁 Загрузить файл Excel
-                <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display:none;" onchange="importExcelFile(event)">
-            </label>
-            <button class="btn btn-outline" onclick="resetData()">Сбросить память</button>
+            <button class="btn btn-outline" onclick="syncWithGoogleDrive()">🔄 Обновить из облака</button>
+            <button class="btn btn-success" onclick="triggerImport()">🔒 Импорт Excel (Пароль)</button>
+            <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display:none;" onchange="importExcelFile(event)">
         </div>
     </div>
 
@@ -63,7 +75,7 @@
     <div class="tabs">
         <button class="tab active" onclick="switchTab('tab-mark', this)">Отметка</button>
         <button class="tab" onclick="switchTab('tab-students', this)">Список учеников</button>
-        <button class="tab" onclick="switchTab('tab-journal', this)">Журнал</button>
+        <button class="tab" onclick="switchTab('tab-journal', this)">Журнал и Отчеты</button>
     </div>
 
     <!-- Вкладка отметки -->
@@ -85,7 +97,8 @@
                     <option value="Причина">Уважительная причина</option>
                 </select>
                 <input type="text" id="noteInput" placeholder="Примечание (необязательно)">
-                <button class="btn btn-primary" style="width:100%" onclick="saveRecord()">Сохранить отметку</button>
+                <button class="btn btn-primary" style="width:100%" id="saveBtn" onclick="saveRecord()">Сохранить и отправить в облако</button>
+                <div class="status-sync" id="syncStatus">Все данные синхронизированы</div>
             </div>
             <div class="card">
                 <h3>Записи за сегодня</h3>
@@ -102,7 +115,7 @@
     <!-- Вкладка списка учеников -->
     <div id="tab-students" class="section">
         <div id="noDataNotice" class="badge-info" style="display:none;">
-            ⚠️ Список загружается из файла <code>контингент.xlsx</code>...
+            ⚠️ Список учеников не загружен. Нажмите кнопку «🔒 Импорт Excel (Пароль)».
         </div>
         <div style="display:flex; gap:10px; margin-bottom:12px;">
             <input type="text" id="studentListSearch" placeholder="Быстрый поиск ученика..." oninput="renderStudentsTable()" style="margin:0;">
@@ -115,8 +128,33 @@
         </div>
     </div>
 
-    <!-- Вкладка журнала -->
+    <!-- Вкладка журнала с выбором периода -->
     <div id="tab-journal" class="section">
+        <div class="filter-panel">
+            <label>Период:</label>
+            <select id="periodSelect" onchange="onPeriodChange()">
+                <option value="today">За сегодня</option>
+                <option value="week">За 7 дней</option>
+                <option value="custom">Выбрать период...</option>
+                <option value="all">За всё время</option>
+            </select>
+
+            <div class="date-range" id="customDateRange">
+                <label>С:</label>
+                <input type="date" id="dateFrom" onchange="renderJournal()">
+                <label>По:</label>
+                <input type="date" id="dateTo" onchange="renderJournal()">
+            </div>
+        </div>
+
+        <div class="summary-box">
+            <div class="summary-item"><strong id="sumTotal">0</strong> Всего отметок</div>
+            <div class="summary-item"><strong id="sumPresent" style="color:#10B981">0</strong> Присутствуют</div>
+            <div class="summary-item"><strong id="sumLate" style="color:#F59E0B">0</strong> Опоздания</div>
+            <div class="summary-item"><strong id="sumAbsent" style="color:#EF4444">0</strong> Отсутствуют</div>
+            <div class="summary-item"><strong id="sumReason" style="color:#6366F1">0</strong> Уважит. причина</div>
+        </div>
+
         <div class="table-wrap">
             <table>
                 <thead><tr><th>Дата</th><th>Время</th><th>ФИО</th><th>Класс</th><th>Статус</th><th>Примечание</th></tr></thead>
@@ -127,6 +165,10 @@
 </div>
 
 <script>
+    // ⚙️ НАСТРОЙКИ ПРИЛОЖЕНИЯ:
+    const IMPORT_PASSWORD = "107"; // Ваш пароль на импорт файла
+    const GOOGLE_SCRIPT_URL = "ВСТАВЬТЕ_СЮДА_ССЫЛКУ_ИЗ_ШАГА_1"; // Вставьте ссылку из Шага 1
+
     let students = [];
     let records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
 
@@ -136,21 +178,22 @@
             students = JSON.parse(saved);
             updateAll();
         } else {
-            // Пробуем автозагрузку с GitHub репозитория по правильному имени 'контингент.xlsx'
             fetch('контингент.xlsx')
-                .then(res => {
-                    if (!res.ok) throw new Error('File not found');
-                    return res.arrayBuffer();
-                })
-                .then(buffer => {
-                    parseExcelBuffer(buffer);
-                })
-                .catch(err => {
-                    console.log('Автозагрузка не удалась, требуется загрузить файл вручную.');
-                    updateAll();
-                });
+                .then(res => res.arrayBuffer())
+                .then(buffer => parseExcelBuffer(buffer))
+                .catch(() => updateAll());
         }
+        syncWithGoogleDrive();
     };
+
+    function triggerImport() {
+        const pass = prompt('Введите пароль администратора для импорта базы:');
+        if (pass === IMPORT_PASSWORD) {
+            document.getElementById('excelFileInput').click();
+        } else if (pass !== null) {
+            alert('Неверный пароль!');
+        }
+    }
 
     function parseExcelBuffer(buffer) {
         const wb = XLSX.read(buffer, {type: 'array'});
@@ -175,20 +218,12 @@
         reader.onload = function(e) {
             try {
                 parseExcelBuffer(new Uint8Array(e.target.result));
-                alert(`Успешно загружено ${students.length} учеников!`);
+                alert(`Успешно импортировано ${students.length} учеников!`);
             } catch (err) {
                 alert('Ошибка импорта Excel: ' + err.message);
             }
         };
         reader.readAsArrayBuffer(file);
-    }
-
-    function resetData() {
-        if (confirm('Очистить загруженный список?')) {
-            localStorage.removeItem('loaded_students');
-            students = [];
-            updateAll();
-        }
     }
 
     function updateAll() {
@@ -228,9 +263,7 @@
             : '<option value="">— Выберите ученика —</option>' + filtered.map(s => `<option value="${s.id}">${s.name} (${s.class})</option>`).join('');
     }
 
-    function onSearchChange() {
-        onClassChange();
-    }
+    function onSearchChange() { onClassChange(); }
 
     function renderStudentsTable() {
         const q = document.getElementById('studentListSearch').value.toLowerCase();
@@ -246,7 +279,7 @@
         `).join('');
     }
 
-    function saveRecord() {
+    async function saveRecord() {
         const id = document.getElementById('studentSelect').value;
         const status = document.getElementById('statusSelect').value;
         const note = document.getElementById('noteInput').value;
@@ -268,7 +301,60 @@
         localStorage.setItem('attendance_records', JSON.stringify(records));
         document.getElementById('noteInput').value = '';
         updateAll();
-        alert('Запись сохранена');
+
+        if (GOOGLE_SCRIPT_URL && !GOOGLE_SCRIPT_URL.includes("ВСТАВЬТЕ_СЮДА")) {
+            const statusDiv = document.getElementById('syncStatus');
+            statusDiv.textContent = "⏳ Отправка в Google Таблицу...";
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(rec)
+                });
+                statusDiv.textContent = "✅ Отправлено в Google Таблицу";
+            } catch (err) {
+                statusDiv.textContent = "⚠️ Сохранено локально";
+            }
+        }
+    }
+
+    async function syncWithGoogleDrive() {
+        if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("ВСТАВЬТЕ_СЮДА")) return;
+        const statusDiv = document.getElementById('syncStatus');
+        statusDiv.textContent = "⏳ Синхронизация...";
+        try {
+            const res = await fetch(GOOGLE_SCRIPT_URL);
+            const remoteRecords = await res.json();
+            if (Array.isArray(remoteRecords) && remoteRecords.length > 0) {
+                records = remoteRecords.reverse();
+                localStorage.setItem('attendance_records', JSON.stringify(records));
+                updateAll();
+                statusDiv.textContent = "✅ Данные обновлены из облака";
+            }
+        } catch (err) {
+            statusDiv.textContent = "Готово (офлайн режим)";
+        }
+    }
+
+    function onPeriodChange() {
+        const val = document.getElementById('periodSelect').value;
+        const customRange = document.getElementById('customDateRange');
+        if (val === 'custom') {
+            customRange.classList.add('active');
+        } else {
+            customRange.classList.remove('active');
+        }
+        renderJournal();
+    }
+
+    function parseDateStr(str) {
+        if (!str) return null;
+        const parts = str.split('.');
+        if (parts.length === 3) {
+            return new Date(parts[2], parts[1] - 1, parts[0]);
+        }
+        return new Date(str);
     }
 
     function renderJournal() {
@@ -284,7 +370,43 @@
             </tr>
         `).join('');
 
-        document.getElementById('journalTable').innerHTML = records.map(r => `
+        const period = document.getElementById('periodSelect').value;
+        const now = new Date();
+        now.setHours(0,0,0,0);
+
+        let filteredRecords = records.filter(r => {
+            const rDate = parseDateStr(r.date);
+            if (!rDate) return true;
+            rDate.setHours(0,0,0,0);
+
+            if (period === 'today') {
+                return rDate.getTime() === now.getTime();
+            } else if (period === 'week') {
+                const weekAgo = new Date(now);
+                weekAgo.setDate(now.getDate() - 7);
+                return rDate >= weekAgo && rDate <= now;
+            } else if (period === 'custom') {
+                const fromVal = document.getElementById('dateFrom').value;
+                const toVal = document.getElementById('dateTo').value;
+                if (!fromVal && !toVal) return true;
+
+                let fromDate = fromVal ? new Date(fromVal) : new Date(0);
+                let toDate = toVal ? new Date(toVal) : new Date(2099, 11, 31);
+                fromDate.setHours(0,0,0,0);
+                toDate.setHours(23,59,59,999);
+
+                return rDate >= fromDate && rDate <= toDate;
+            }
+            return true;
+        });
+
+        document.getElementById('sumTotal').textContent = filteredRecords.length;
+        document.getElementById('sumPresent').textContent = filteredRecords.filter(r => r.status === 'Присутствует').length;
+        document.getElementById('sumLate').textContent = filteredRecords.filter(r => r.status === 'Опоздал').length;
+        document.getElementById('sumAbsent').textContent = filteredRecords.filter(r => r.status === 'Отсутствует').length;
+        document.getElementById('sumReason').textContent = filteredRecords.filter(r => r.status === 'Причина').length;
+
+        document.getElementById('journalTable').innerHTML = filteredRecords.map(r => `
             <tr>
                 <td>${r.date}</td>
                 <td>${r.time}</td>
