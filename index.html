@@ -938,14 +938,17 @@
         <div id="tab-students" class="section">
             <h3 class="section-title">Список учеников</h3>
             <div class="card" style="margin-bottom:16px;">
-                <div class="card-title">Управление учениками</div>
+                <div class="card-title">📥 Импорт учеников из Excel</div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-                    <button class="btn btn-primary admin-only" id="openStudentsImportBtn" onclick="openStudentsImport()">📥 Импорт учеников</button>
+                    <button class="btn btn-primary admin-only" id="openStudentsImportBtn" onclick="openStudentsImport()">📥 Выбрать Excel-файл</button>
                     <button class="btn admin-only" onclick="downloadStudentsTemplate()">📄 Скачать пример Excel</button>
-                    <span class="text-muted">Импортируйте список учеников из Excel одним файлом.</span>
+                    <span class="text-muted">Можно загрузить сразу весь список учеников. Формат: <strong>ФИО</strong> + <strong>Класс</strong>.</span>
                 </div>
                 <input type="file" id="studentsExcelFileTop" accept=".xlsx,.xls" style="display:none;" onchange="importStudentsExcelFromTop(this)">
                 <div id="importStudentsResultTop" class="text-muted" style="margin-top:10px;"></div>
+                <div style="margin-top:10px;padding:10px 12px;background:var(--primary-bg);border-radius:10px;font-size:13px;color:var(--gray-600);">
+                    💡 <strong>Как пользоваться:</strong> скачайте пример Excel → заполните ФИО и класс → нажмите «Выбрать Excel-файл» → ученики добавятся автоматически.
+                </div>
             </div>
             <div class="card admin-only" style="margin-bottom:16px;">
                 <div class="card-title">Добавление ученика вручную</div>
@@ -1009,7 +1012,7 @@
 <script>
     // ======================== CONFIGURATION ========================
     // Укажи URL опубликованного Google Apps Script Web App.
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxuTyAW3bsq-JJQ3sdV9MAx4TM60eU9noOpUiyrtpgbEf2gipzvOBwreqStR4raMASm/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLjSgq3ugXkVTs-4QWBeEtaH7yREDTQ-xQx9CvCot7MeO8nrD56N9ZBWLqY5V27oYx/exec';
 
     // ======================== STATE ========================
     let currentUser = null;
@@ -1285,8 +1288,8 @@
             if(rows.length<2) throw new Error('В Excel нет строк с учениками');
 
             const headers=rows[0].map(normalizeExcelHeader);
-            const nameIndex=headers.findIndex(h=>['фио','фиоученика','ученик','ученикфио','fullname','name'].includes(h));
-            const classIndex=headers.findIndex(h=>['класс','классученика','class','group'].includes(h));
+            const nameIndex=headers.findIndex(h=>['фио','фиоученика','ученик','ученикфио','fullname','full_name','student','studentname','name'].includes(h));
+            const classIndex=headers.findIndex(h=>['класс','классученика','класс/группа','class','classroom','group','groupname'].includes(h));
             if(nameIndex<0 || classIndex<0){
                 throw new Error('Не найдены столбцы «ФИО» и «Класс». Используйте кнопку «Скачать пример Excel».');
             }
@@ -1296,7 +1299,7 @@
             for(let i=1;i<rows.length;i++){
                 const row=rows[i]||[];
                 const name=String(row[nameIndex]??'').trim();
-                const cls=String(row[classIndex]??'').trim();
+                const cls=String(row[classIndex]??'').trim().replace(/\.0$/,'');
                 if(!name && !cls) continue;
                 if(!name || !cls) continue;
                 const key=name.toLocaleLowerCase('ru')+'|'+cls.toLocaleLowerCase('ru');
