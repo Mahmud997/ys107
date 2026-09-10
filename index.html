@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Учёт посещаемости — Школа №107</title>
+    <title> №107 школа-лицей. Автор: Алимов М.К.</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -63,11 +63,11 @@
     <div class="header">
         <div class="logo">
             <span class="live-indicator"></span> 
-            🏫 Учёт посещаемости №107 (Онлайн)
+            Учёт посещаемости №107 (Онлайн)
         </div>
         <div class="header-btns">
-            <button class="btn btn-outline" onclick="syncWithGoogleDrive(true)">🔄 Обновить сейчас</button>
-            <button class="btn btn-success" onclick="triggerImport()">🔒 Импорт Excel (Пароль)</button>
+            <button class="btn btn-outline" onclick="syncWithGoogleDrive(true)">Обновить сейчас</button>
+            <button class="btn btn-success" onclick="triggerImport()">Импорт Excel (Пароль)</button>
             <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display:none;" onchange="importExcelFile(event)">
         </div>
     </div>
@@ -104,7 +104,7 @@
                 </select>
                 <input type="text" id="noteInput" placeholder="Примечание (необязательно)">
                 <button class="btn btn-primary" style="width:100%" id="saveBtn" onclick="saveRecord()">Сохранить и отправить всем</button>
-                <div class="status-sync" id="syncStatus">🟢 Подключено к сети</div>
+                <div class="status-sync" id="syncStatus">Подключено к сети</div>
             </div>
             <div class="card">
                 <h3>Записи за сегодня (Онлайн)</h3>
@@ -121,7 +121,7 @@
     <!-- Вкладка списка учеников -->
     <div id="tab-students" class="section">
         <div id="noDataNotice" class="badge-info" style="display:none;">
-            ⚠️ Список учеников не загружен. Нажмите «🔒 Импорт Excel (Пароль)».
+            Список учеников не загружен. Нажмите «Импорт Excel (Пароль)».
         </div>
         <div style="display:flex; gap:10px; margin-bottom:12px;">
             <input type="text" id="studentListSearch" placeholder="Быстрый поиск ученика..." oninput="renderStudentsTable()" style="margin:0;">
@@ -172,7 +172,7 @@
 
 <script>
     const IMPORT_PASSWORD = "107";
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby8LV5pPHh-q_qna9njDwTvsFh9kUwbWr-swYbyEYPOTe81P6xj7v0rYC_PAhHKu3N3EQ/exec"; 
+    const GOOGLE_SCRIPT_URL = "ВСТАВЬТЕ_СЮДА_ССЫЛКУ_ИЗ_ШАГА_1"; 
 
     let students = [];
     let records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
@@ -189,9 +189,8 @@
                 .catch(() => updateAll());
         }
 
-        // Первичная синхронизация и запуск таймера авто-обновления каждые 5 секунд
         syncWithGoogleDrive();
-        setInterval(() => syncWithGoogleDrive(false), 5000);
+        setInterval(() => syncWithGoogleDrive(false), 4000);
     };
 
     function triggerImport() {
@@ -260,15 +259,22 @@
         const cls = document.getElementById('classFilter').value;
         const q = document.getElementById('nameSearch').value.toLowerCase();
         const sel = document.getElementById('studentSelect');
+        const currentSelectedId = sel.value;
 
         let filtered = students.filter(s => 
             (!cls || s.class === cls) && 
             (!q || s.name.toLowerCase().includes(q))
         );
 
-        sel.innerHTML = filtered.length === 0 
-            ? '<option value="">Никого не найдено</option>'
-            : '<option value="">— Выберите ученика —</option>' + filtered.map(s => `<option value="${s.id}">${s.name} (${s.class})</option>`).join('');
+        if (filtered.length === 0) {
+            sel.innerHTML = '<option value="">Никого не найдено</option>';
+        } else {
+            sel.innerHTML = '<option value="">— Выберите ученика —</option>' + 
+                filtered.map(s => `<option value="${s.id}">${s.name} (${s.class})</option>`).join('');
+            if (currentSelectedId && filtered.some(s => s.id === currentSelectedId)) {
+                sel.value = currentSelectedId;
+            }
+        }
     }
 
     function onSearchChange() { onClassChange(); }
@@ -307,12 +313,14 @@
 
         records.unshift(rec);
         localStorage.setItem('attendance_records', JSON.stringify(records));
+        
+        document.getElementById('studentSelect').value = '';
         document.getElementById('noteInput').value = '';
         updateAll();
 
         if (GOOGLE_SCRIPT_URL && !GOOGLE_SCRIPT_URL.includes("ВСТАВЬТЕ_СЮДА")) {
             const statusDiv = document.getElementById('syncStatus');
-            statusDiv.textContent = "⏳ Отправка всем участникам...";
+            statusDiv.textContent = "Отправка всем...";
             try {
                 await fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
@@ -320,10 +328,10 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(rec)
                 });
-                statusDiv.textContent = "✅ Сохранено онлайн";
-                setTimeout(() => syncWithGoogleDrive(false), 1000);
+                statusDiv.textContent = "Сохранено в облако";
+                setTimeout(() => syncWithGoogleDrive(false), 1500);
             } catch (err) {
-                statusDiv.textContent = "⚠️ Сохранено локально";
+                statusDiv.textContent = "Ошибка отправки";
             }
         }
     }
@@ -331,19 +339,20 @@
     async function syncWithGoogleDrive(showToast = false) {
         if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("ВСТАВЬТЕ_СЮДА")) return;
         const statusDiv = document.getElementById('syncStatus');
-        if (showToast) statusDiv.textContent = "⏳ Обновление...";
+        if (showToast) statusDiv.textContent = "Синхронизация...";
 
         try {
-            const res = await fetch(GOOGLE_SCRIPT_URL);
+            const res = await fetch(GOOGLE_SCRIPT_URL, { redirect: 'follow' });
             const remoteRecords = await res.json();
-            if (Array.isArray(remoteRecords) && remoteRecords.length > 0) {
+            
+            if (Array.isArray(remoteRecords)) {
                 records = remoteRecords.reverse();
                 localStorage.setItem('attendance_records', JSON.stringify(records));
                 updateAll();
-                statusDiv.textContent = "🟢 Онлайн-синхронизация активна";
+                statusDiv.textContent = "Онлайн-синхронизация активна";
             }
         } catch (err) {
-            statusDiv.textContent = "🟡 Офлайн режим";
+            if (showToast) statusDiv.textContent = "Офлайн режим";
         }
     }
 
