@@ -77,6 +77,12 @@ function makeId_() {
   return Utilities.getUuid();
 }
 
+function normalizeRole_(role) {
+  const r = String(role || '').trim().toLowerCase();
+  if (['zavuch','завуч','admin','administrator','администратор'].includes(r)) return 'zavuch';
+  return 'teacher';
+}
+
 function login_(p) {
   const login = String(p.login || '').trim();
   const password = String(p.password || '');
@@ -88,8 +94,9 @@ function login_(p) {
       const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g,'');
       const s = ensureSessionsSheet_();
       cleanupSessions_(s);
-      s.appendRow([token, login, String(data[i][2] || 'teacher'), String(data[i][3] || login), Date.now()]);
-      return json_({ success:true, token, role:String(data[i][2] || 'teacher'), name:String(data[i][3] || login) });
+      const role = normalizeRole_(data[i][2] || 'teacher');
+      s.appendRow([token, login, role, String(data[i][3] || login), Date.now()]);
+      return json_({ success:true, token, role, name:String(data[i][3] || login) });
     }
   }
   return json_({ success:false, error:'Неверный логин или пароль' });
@@ -118,20 +125,8 @@ function withAuth_(p, fn) {
 function withRole_(p, role, fn) {
   const user = auth_(p.token);
   if (!user) return json_({ success:false, error:'Сессия недействительна или истекла.', auth:false });
-  if (role === 'zavuch' && !isZavuchRole_(user.role)) return json_({ success:false, error:'Недостаточно прав. Импорт доступен только завучу.' });
-  if (role !== 'zavuch' && user.role !== role) return json_({ success:false, error:'Недостаточно прав.' });
+  if (normalizeRole_(user.role) !== normalizeRole_(role)) return json_({ success:false, error:'Недостаточно прав. Войдите под учётной записью завуча.' });
   return fn(p, user);
-}
-
-
-function isZavuchRole_(role) {
-  const r = String(role || '').trim().toLowerCase();
-  return ['zavuch','завуч','admin','админ','administrator'].indexOf(r) !== -1;
-}
-
-function isZavuchRole_(role) {
-  const r = String(role || '').trim().toLowerCase();
-  return ['zavuch','завуч','admin','админ','administrator'].indexOf(r) !== -1;
 }
 
 function heartbeat_(p, user) {
@@ -226,8 +221,6 @@ function addStudent_(p,user) {
 }
 
 function importStudents_(p,user) {
-  if (!isZavuchRole_(user.role)) return json_({success:false,error:'Недостаточно прав. Для импорта войдите как завуч.'});
-  if (!isZavuchRole_(user.role)) return json_({success:false,error:'Недостаточно прав. Для импорта войдите как завуч.'});
   let students=[];
   try { students=JSON.parse(String(p.students||'[]')); } catch(e) { return json_({success:false,error:'Неверный формат данных Excel.'}); }
   if (!Array.isArray(students) || !students.length) return json_({success:false,error:'В Excel нет учеников.'});
@@ -240,8 +233,8 @@ function importStudents_(p,user) {
     let added=0, skipped=0, invalid=0;
     const out=[];
     students.forEach(item=>{
-      const name=String(item.name||'').replace(/^\uFEFF/,'').trim();
-      const cls=String(item.class||'').replace(/^\uFEFF/,'').trim().replace(/\.0$/,'');
+      const name=String(item.name||'').trim();
+      const cls=String(item.class||'').trim();
       if(!name || !cls){ invalid++; return; }
       const key=name.toLowerCase()+'|'+cls.toLowerCase();
       if(existing.has(key)){ skipped++; return; }

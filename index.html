@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>107 School Attendance</title>
+    <title>School Attendance Pro — учёт посещаемости</title>
     <meta name="description" content="Онлайн-система учёта посещаемости школы с Google Таблицами">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -792,8 +792,8 @@
         <button class="btn btn-primary" onclick="login()">Войти</button>
         <div id="loginError" class="login-error"></div>
         <div class="login-hint">
-            <strong>Автор:</strong> <code>Алимов М</code> / <code> </code><br>
-            <strong> </strong> <code> </code> / <code> </code> — <em>несколько дежурных могут войти одновременно</em>
+            <strong>Завуч:</strong> <code>zavuch</code> / <code>123</code><br>
+            <strong>Дежурный (общий):</strong> <code>teacher</code> / <code>123</code> — <em>несколько человек могут войти одновременно</em>
         </div>
     </div>
 
@@ -942,7 +942,7 @@
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
                     <button class="btn btn-primary admin-only" id="openStudentsImportBtn" onclick="openStudentsImport()">📥 Импорт учеников</button>
                     <button class="btn admin-only" onclick="downloadStudentsTemplate()">📄 Скачать пример Excel</button>
-                    <span class="text-muted">Импортируйте список учеников из Excel одним файлом.</span>
+                    <span class="text-muted">Импорт доступен только пользователю «Завуч». Войдите как <strong>zavuch</strong>, чтобы увидеть кнопки.</span>
                 </div>
                 <input type="file" id="studentsExcelFileTop" accept=".xlsx,.xls" style="display:none;" onchange="importStudentsExcelFromTop(this)">
                 <div id="importStudentsResultTop" class="text-muted" style="margin-top:10px;"></div>
@@ -1009,7 +1009,7 @@
 <script>
     // ======================== CONFIGURATION ========================
     // Укажи URL опубликованного Google Apps Script Web App.
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzOI8cUarQx1cc2rlJoXKsAeYiAKtNZ781TpYyrowTQD4B7FSipkEujg2vChbP3Fs_i/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLjSgq3ugXkVTs-4QWBeEtaH7yREDTQ-xQx9CvCot7MeO8nrD56N9ZBWLqY5V27oYx/exec';
 
     // ======================== STATE ========================
     let currentUser = null;
@@ -1132,8 +1132,13 @@
     }
 
     // ======================== PERMISSIONS ========================
+    function isZavuch(){
+        if(!currentUser) return false;
+        const r=String(currentUser.role||'').trim().toLowerCase();
+        return ['zavuch','завуч','admin','administrator','администратор'].includes(r);
+    }
     function applyRolePermissions(){
-        const isZavuch=currentUser && currentUser.role==='zavuch';
+        const isZ=isZavuch();
         document.querySelectorAll('.admin-only').forEach(el=>el.style.display=isZavuch?'':'none');
         document.getElementById('adminTab').style.display=isZavuch?'inline-block':'none';
     }
@@ -1160,7 +1165,7 @@
     }
 
     function renderStudents(){
-        const tbody=document.getElementById('studentsTableBody'); const isZ=currentUser&&currentUser.role==='zavuch';
+        const tbody=document.getElementById('studentsTableBody'); const isZ=isZavuch();
         tbody.innerHTML=appData.students.map(s=>`<tr><td><strong>${escapeHtml(s.name)}</strong></td><td>${escapeHtml(s.class)}</td><td>${isZ?`<button class="btn btn-danger btn-sm" onclick="removeStudent('${s.id}')">Удалить</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="3" class="empty-state">Нет учеников</td></tr>';
     }
     function renderStudentSelects(){
@@ -1232,14 +1237,13 @@
         else alert(result.error||'Ошибка сохранения');
     }
     async function addStudent(){
-        if(!currentUser||currentUser.role!=='zavuch'){alert('Только завуч может добавлять учеников');return;}
+        if(!isZavuch()){alert('Только завуч может добавлять учеников. Выйдите и войдите под логином завуча.');return;}
         const name=document.getElementById('studentName').value.trim(),cls=document.getElementById('studentClass').value.trim();if(!name||!cls){alert('Введите ФИО и класс');return;}
         const result=await callApi('addStudent',{name,class:cls});if(result.success){await loadData();document.getElementById('studentName').value='';document.getElementById('studentClass').value='';}else alert(result.error||'Ошибка');
     }
-    function isZavuchRole(role){ return ['zavuch','завуч','admin','админ','administrator'].includes(String(role||'').trim().toLowerCase()); }
     function openStudentsImport(){
-        if(!currentUser || !isZavuchRole(currentUser.role)){
-            alert('Импорт доступен только завучу. Войдите под учётной записью завуча.');
+        if(!isZavuch()){
+            alert('Импорт доступен только завучу. Выйдите и войдите под логином завуча.');
             return;
         }
         const input=document.getElementById('studentsExcelFileTop');
@@ -1265,8 +1269,8 @@
     }
 
     async function importStudentsExcel(source){
-        if(!currentUser || !isZavuchRole(currentUser.role)){
-            alert('Импорт доступен только завучу. Войдите под учётной записью завуча.');
+        if(!isZavuch()){
+            alert('Импорт доступен только завучу. Выйдите и войдите под логином завуча.');
             return;
         }
         const topInput=document.getElementById('studentsExcelFileTop');
@@ -1286,8 +1290,8 @@
             if(rows.length<2) throw new Error('В Excel нет строк с учениками');
 
             const headers=rows[0].map(normalizeExcelHeader);
-            const nameIndex=headers.findIndex(h=>['фио','фиоученика','ученик','ученикфио','fullname','full_name','student','studentname','name'].includes(h));
-            const classIndex=headers.findIndex(h=>['класс','классученика','класс/группа','class','classroom','group','groupname'].includes(h));
+            const nameIndex=headers.findIndex(h=>['фио','фиоученика','ученик','ученикфио','fullname','name'].includes(h));
+            const classIndex=headers.findIndex(h=>['класс','классученика','class','group'].includes(h));
             if(nameIndex<0 || classIndex<0){
                 throw new Error('Не найдены столбцы «ФИО» и «Класс». Используйте кнопку «Скачать пример Excel».');
             }
@@ -1297,7 +1301,7 @@
             for(let i=1;i<rows.length;i++){
                 const row=rows[i]||[];
                 const name=String(row[nameIndex]??'').trim();
-                const cls=String(row[classIndex]??'').trim().replace(/\.0$/,'');
+                const cls=String(row[classIndex]??'').trim();
                 if(!name && !cls) continue;
                 if(!name || !cls) continue;
                 const key=name.toLocaleLowerCase('ru')+'|'+cls.toLocaleLowerCase('ru');
@@ -1338,11 +1342,11 @@
     }
 
     async function removeStudent(id){
-        if(!currentUser||currentUser.role!=='zavuch')return;if(!confirm('Удалить ученика и все его записи?'))return;
+        if(!isZavuch())return;if(!confirm('Удалить ученика и все его записи?'))return;
         const a=await callApi('removeStudent',{id});if(!a.success){alert(a.error||'Ошибка');return;}await callApi('removeStudentRecords',{studentId:id});await loadData();
     }
     async function resetAll(){
-        if(!currentUser||currentUser.role!=='zavuch'){alert('Только завуч может сбросить данные');return;}if(!confirm('Удалить ВСЕ записи посещаемости? Ученики останутся.'))return;
+        if(!isZavuch()){alert('Только завуч может сбросить данные');return;}if(!confirm('Удалить ВСЕ записи посещаемости? Ученики останутся.'))return;
         const r=await callApi('resetAll');if(r.success){await loadData();alert(`Удалено записей: ${r.deleted||0}`);}else alert(r.error||'Ошибка сброса');
     }
 
