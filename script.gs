@@ -118,8 +118,20 @@ function withAuth_(p, fn) {
 function withRole_(p, role, fn) {
   const user = auth_(p.token);
   if (!user) return json_({ success:false, error:'Сессия недействительна или истекла.', auth:false });
-  if (user.role !== role) return json_({ success:false, error:'Недостаточно прав.' });
+  if (role === 'zavuch' && !isZavuchRole_(user.role)) return json_({ success:false, error:'Недостаточно прав. Импорт доступен только завучу.' });
+  if (role !== 'zavuch' && user.role !== role) return json_({ success:false, error:'Недостаточно прав.' });
   return fn(p, user);
+}
+
+
+function isZavuchRole_(role) {
+  const r = String(role || '').trim().toLowerCase();
+  return ['zavuch','завуч','admin','админ','administrator'].indexOf(r) !== -1;
+}
+
+function isZavuchRole_(role) {
+  const r = String(role || '').trim().toLowerCase();
+  return ['zavuch','завуч','admin','админ','administrator'].indexOf(r) !== -1;
 }
 
 function heartbeat_(p, user) {
@@ -214,6 +226,8 @@ function addStudent_(p,user) {
 }
 
 function importStudents_(p,user) {
+  if (!isZavuchRole_(user.role)) return json_({success:false,error:'Недостаточно прав. Для импорта войдите как завуч.'});
+  if (!isZavuchRole_(user.role)) return json_({success:false,error:'Недостаточно прав. Для импорта войдите как завуч.'});
   let students=[];
   try { students=JSON.parse(String(p.students||'[]')); } catch(e) { return json_({success:false,error:'Неверный формат данных Excel.'}); }
   if (!Array.isArray(students) || !students.length) return json_({success:false,error:'В Excel нет учеников.'});

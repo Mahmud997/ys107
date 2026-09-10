@@ -938,17 +938,14 @@
         <div id="tab-students" class="section">
             <h3 class="section-title">Список учеников</h3>
             <div class="card" style="margin-bottom:16px;">
-                <div class="card-title">📥 Импорт учеников из Excel</div>
+                <div class="card-title">Управление учениками</div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-                    <button class="btn btn-primary admin-only" id="openStudentsImportBtn" onclick="openStudentsImport()">📥 Выбрать Excel-файл</button>
+                    <button class="btn btn-primary admin-only" id="openStudentsImportBtn" onclick="openStudentsImport()">📥 Импорт учеников</button>
                     <button class="btn admin-only" onclick="downloadStudentsTemplate()">📄 Скачать пример Excel</button>
-                    <span class="text-muted">Можно загрузить сразу весь список учеников. Формат: <strong>ФИО</strong> + <strong>Класс</strong>.</span>
+                    <span class="text-muted">Импортируйте список учеников из Excel одним файлом.</span>
                 </div>
                 <input type="file" id="studentsExcelFileTop" accept=".xlsx,.xls" style="display:none;" onchange="importStudentsExcelFromTop(this)">
                 <div id="importStudentsResultTop" class="text-muted" style="margin-top:10px;"></div>
-                <div style="margin-top:10px;padding:10px 12px;background:var(--primary-bg);border-radius:10px;font-size:13px;color:var(--gray-600);">
-                    💡 <strong>Как пользоваться:</strong> скачайте пример Excel → заполните ФИО и класс → нажмите «Выбрать Excel-файл» → ученики добавятся автоматически.
-                </div>
             </div>
             <div class="card admin-only" style="margin-bottom:16px;">
                 <div class="card-title">Добавление ученика вручную</div>
@@ -1012,7 +1009,7 @@
 <script>
     // ======================== CONFIGURATION ========================
     // Укажи URL опубликованного Google Apps Script Web App.
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzuma9eSEyn4KgcSFeZvcFljupfsj4jNTdnYOjy95AnLdJRxyZy_K-a4805CZcZkmHX/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLjSgq3ugXkVTs-4QWBeEtaH7yREDTQ-xQx9CvCot7MeO8nrD56N9ZBWLqY5V27oYx/exec';
 
     // ======================== STATE ========================
     let currentUser = null;
@@ -1239,9 +1236,10 @@
         const name=document.getElementById('studentName').value.trim(),cls=document.getElementById('studentClass').value.trim();if(!name||!cls){alert('Введите ФИО и класс');return;}
         const result=await callApi('addStudent',{name,class:cls});if(result.success){await loadData();document.getElementById('studentName').value='';document.getElementById('studentClass').value='';}else alert(result.error||'Ошибка');
     }
+    function isZavuchRole(role){ return ['zavuch','завуч','admin','админ','administrator'].includes(String(role||'').trim().toLowerCase()); }
     function openStudentsImport(){
-        if(!currentUser || currentUser.role!=='zavuch'){
-            alert('Только завуч может импортировать учеников');
+        if(!currentUser || !isZavuchRole(currentUser.role)){
+            alert('Импорт доступен только завучу. Войдите под учётной записью завуча.');
             return;
         }
         const input=document.getElementById('studentsExcelFileTop');
@@ -1267,8 +1265,8 @@
     }
 
     async function importStudentsExcel(source){
-        if(!currentUser || currentUser.role!=='zavuch'){
-            alert('Только завуч может импортировать учеников');
+        if(!currentUser || !isZavuchRole(currentUser.role)){
+            alert('Импорт доступен только завучу. Войдите под учётной записью завуча.');
             return;
         }
         const topInput=document.getElementById('studentsExcelFileTop');
